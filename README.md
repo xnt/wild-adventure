@@ -2,6 +2,8 @@
 
 A top-down Zelda-like action-adventure prototype built with **Phaser 3** and bundled with **Vite**.
 
+![Gameplay Screenshot](./Screenshot.png)
+
 Move around a procedurally generated overworld, fight goblins with your sword, collect hearts, and survive.
 
 ## Controls
