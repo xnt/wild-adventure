@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  base: "/wild-adventure/",
   // Expose to all interfaces so containers can serve to the host
   server: {
     host: '0.0.0.0',
