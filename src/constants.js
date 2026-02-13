@@ -21,6 +21,36 @@ export const NUM_ENEMIES  = 5;
 
 export const IFRAMES_DUR  = 800;   // invincibility after hit (ms)
 
+// Enemy type configurations — Goblin (classic), Wizrobe (shoots slow projectiles),
+// Lynel (slow but 3-hit kill). Loosely inspired by the usual suspect franchise;
+// all rendered via Phaser graphics (no external sprite PNGs required).
+export const ENEMY_CONFIGS = {
+    goblin: {
+        hp: 1,
+        speedMult: 1.0,
+        shoots: false,
+        texture: 'goblin',
+    },
+    wizrobe: {
+        hp: 1,
+        speedMult: 0.7,  // slightly slower, focuses on ranged attacks
+        shoots: true,
+        texture: 'wizrobe',
+        projSpeed: 80,   // slow projectiles
+        shootCd: 2500,   // seconds between shots (slow)
+    },
+    lynel: {
+        hp: 3,           // takes 3 hits to defeat
+        speedMult: 0.4,  // slow but tanky
+        shoots: false,
+        texture: 'lynel',
+        scale: 1.2,
+    },
+};
+
+// Projectile settings for Wizrobe attacks
+export const PROJ_LIFETIME = 4000;  // ms before projectile auto-destroys
+
 // Frame index mapping for 512×512 player spritesheet (16 cols of 32px).
 // Phaser frame = row * 16 + col.
 export const FRAMES = {

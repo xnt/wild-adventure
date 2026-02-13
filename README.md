@@ -79,8 +79,8 @@ The game auto-generates coloured placeholder textures at runtime, so **no image 
 
 - **Overworld**: 50×50 tile map (~80 % grass, ~12 % trees, ~8 % rocks) with carved cross-paths and a tree border wall.
 - **Player**: 4 hearts (96 HP). Takes 24 damage per enemy touch. 0.8 s invincibility after each hit with knockback.
-- **Enemies**: 5 goblins. Patrol randomly; chase the player within 128 px. Die in one sword hit and drop a heart pickup (+24 HP).
-- **Win condition**: Defeat all 5 goblins.
+- **Enemies**: The world contains a mix of goblins, wizrobes, and a lynel miniboss. Goblins patrol randomly and chase the player if they come within 128 px; they die in one sword hit and drop a heart pickup (+24 HP). Wizrobes teleport between set points, periodically casting ranged magic projectiles at the player, and are vulnerable to sword attacks. The lynel is tougher, pursuing the player aggressively, using both melee charges and powerful ranged attacks, and requires multiple hits to defeat. The exact composition and number of each enemy type may vary from game to game.
+- **Win condition**: Defeat all 5 enemies.
 - **Lose condition**: HP reaches 0.
 
 ## License

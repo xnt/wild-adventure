@@ -5,6 +5,8 @@ import {
     ATTACK_RANGE, ATTACK_DUR, ATTACK_CD,
     MAX_HP, HEART_HP, ENEMY_DMG, NUM_ENEMIES,
     IFRAMES_DUR, FRAMES as F,
+    // Enemy variety
+    ENEMY_CONFIGS, PROJ_LIFETIME,
 } from '../constants.js';
 import { mapData } from '../map.js';
 import { generateFallbacks } from '../fallbacks.js';
@@ -46,7 +48,13 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('grass',       'grass.png');
         this.load.image('tree',        'tree.png');
         this.load.image('rock',        'rock.png');
+
+        // Enemy variety (Goblin pattern; fallbacks ensure no sprites needed)
         this.load.image('goblin',      'goblin.png');
+        this.load.image('wizrobe',     'wizrobe.png');  // shoots slow projectiles
+        this.load.image('lynel',       'lynel.png');    // slow, 3-hit tank
+        this.load.image('enemy_proj',  'enemy_proj.png'); // Wizrobe projectile
+
         this.load.image('heart_full',  'heart_full.png');
         this.load.image('heart_empty', 'heart_empty.png');
     }
@@ -64,10 +72,47 @@ export default class GameScene extends Phaser.Scene {
         this.swordGroup = this.physics.add.group();
 
         // Collisions
+        // Player & obstacles
         this.physics.add.collider(this.player, this.obstacleLayer);
+        // Enemies & obstacles (can't pass trees/rocks)
         this.physics.add.collider(this.enemies, this.obstacleLayer);
+        // Enemy projectiles collide with obstacles & destroy on hit
+        this.physics.add.collider(
+            this.enemyProjectiles, this.obstacleLayer,
+            (proj) => proj.destroy(),
+            null, this,
+        );
+
+        // Sword attacks vs enemies (persistent group overlap -- fixes accumulation
+        // bug from per-attack registration; ensures single _damageEnemy call per hit,
+        // so Lynels now properly take 3 hits, etc.)
+        // Fix for multi-hit per swing (per debug: overlap fired 3x instantly on 1 attack,
+        // decrementing HP 3->0). Destroy sword immediately on hit to enforce 1 damage/swing.
+        // Simple console debug retained; processCallback kept for extra safety.
+        this.physics.add.overlap(
+            this.swordGroup, this.enemies,
+            (_s, enemy) => {
+                // Simple debug: log Lynel sword overlap to console (should fire once/swing now).
+                if (enemy.type === 'lynel') {
+                    console.log(`Sword overlap hit Lynel! Pre-damage HP=${enemy.hp}, dying=${!!enemy.isDying}, active=${enemy.active}`);
+                }
+                this._damageEnemy(enemy);
+                // Destroy sword on hit (prevents repeat overlap in same attack frame/DUR;
+                // Lynel requires 3 *separate* swings).
+                _s.destroy();
+            },
+            // processCallback: only process if not dying (1 hit/sword safety).
+            (_s, enemy) => !enemy.isDying,
+            this,
+        );
+        // Player-enemy touch damage
         this.physics.add.overlap(
             this.player, this.enemies, this._onPlayerHit, null, this,
+        );
+        // Wizrobe projectile damage (slow orbs)
+        this.physics.add.overlap(
+            this.player, this.enemyProjectiles, this._onPlayerHitByProj,
+            null, this,
         );
 
         // Camera
@@ -285,12 +330,16 @@ export default class GameScene extends Phaser.Scene {
 
             this._createSlashEffect(this.player.x + offX, this.player.y + offY);
 
-            this.physics.add.overlap(sword, this.enemies, (_s, enemy) => {
-                this._killEnemy(enemy);
-            }, null, this);
+            // Sword hit detection now handled by persistent swordGroup overlap
+            // in create() (prevents callback accumulation; Lynels now take
+            // exactly 3 hits, Goblins/Wizrobes 1 hit as intended).
+            // Sword may be destroyed early on hit (see overlap cb), so check.
 
             this.time.delayedCall(ATTACK_DUR, () => {
-                sword.destroy();
+                // Safe destroy (no-op if already gone from hit)
+                if (sword && sword.active) {
+                    sword.destroy();
+                }
                 this.isAttacking = false;
                 this.player.play(`idle_${this.facing}`, true);
             });
@@ -326,13 +375,24 @@ export default class GameScene extends Phaser.Scene {
     // =======================================================================
 
     _createEnemies() {
-        this.enemies    = this.physics.add.group();
-        this.heartDrops = this.physics.add.group();
+        // Enemies now include variety: Goblin (melee), Wizrobe (ranged projectile
+        // shooter), Lynel (slow tank). Follows Goblin pattern using Phaser
+        // graphics fallbacks only — no sprites required.
+        this.enemies          = this.physics.add.group();
+        this.heartDrops       = this.physics.add.group();
+        // Projectiles group for Wizrobe attacks (phys colliders/overlaps
+        // defined in create())
+        this.enemyProjectiles = this.physics.add.group();
 
         let spawned  = 0;
         let attempts = 0;
         const px = Math.floor(MAP_COLS / 2) * TILE_SIZE;
         const py = Math.floor(MAP_ROWS / 2) * TILE_SIZE;
+
+        // Cycle through types to guarantee Wizrobe & Lynel presence (for
+        // NUM_ENEMIES=5); rest fill with Goblins/Wizrobes. Positions still
+        // randomized.
+        const typeCycle = ['goblin', 'wizrobe', 'lynel', 'goblin', 'wizrobe'];
 
         while (spawned < NUM_ENEMIES && attempts < 500) {
             attempts++;
@@ -344,10 +404,35 @@ export default class GameScene extends Phaser.Scene {
             const ey = r * TILE_SIZE + TILE_SIZE / 2;
             if (Phaser.Math.Distance.Between(ex, ey, px, py) < 200) continue;
 
-            const enemy = this.physics.add.sprite(ex, ey, 'goblin');
+            // Select type for variety
+            const enemyType = typeCycle[spawned];
+            const config = ENEMY_CONFIGS[enemyType];
+
+            const enemy = this.physics.add.sprite(ex, ey, config.texture);
             enemy.setDepth(4).setCollideWorldBounds(true);
             enemy.body.setSize(22, 22).setOffset(5, 5);
-            enemy.hp           = 1;
+
+            // Lynel is bigger/slower/tankier
+            if (config.scale) {
+                enemy.setScale(config.scale);
+                // Adjust hitbox for larger size
+                enemy.body.setSize(26, 26).setOffset(3, 3);
+            }
+
+            // Type-specific props (hp, speed, behavior)
+            // (Restored simple .hp prop + basic debug; data storage was part of
+            // complex debug that broke spawn/assets.)
+            enemy.type         = enemyType;
+            enemy.hp           = config.hp;
+            enemy.speedMult    = config.speedMult;
+            enemy.shoots       = config.shoots;
+            if (config.shoots) {
+                // Wizrobe-specific
+                enemy.projSpeed    = config.projSpeed;
+                enemy.shootCd      = config.shootCd;
+                // Stagger initial shots
+                enemy.lastShotTime = Phaser.Math.Between(0, config.shootCd);
+            }
             enemy.patrolTarget = new Phaser.Math.Vector2(ex, ey);
             enemy.patrolTimer  = 0;
             enemy.isChasing    = false;
@@ -364,6 +449,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     _updateEnemies(time) {
+        // Now handles multiple enemy types:
+        // - Goblin: default chase/patrol
+        // - Wizrobe: chase + shoots slow projectiles periodically when in range
+        // - Lynel: slower movement, higher HP (damage handled elsewhere)
+        // All use Phaser's built-in for visuals/phys, matching Goblin pattern.
         this.enemies.getChildren().forEach((enemy) => {
             if (enemy.isDying) return;
 
@@ -371,14 +461,17 @@ export default class GameScene extends Phaser.Scene {
                 enemy.x, enemy.y, this.player.x, this.player.y,
             );
 
+            // Apply type-specific speed (lynels slow, wizrobes medium)
+            const speed = ENEMY_SPEED * (enemy.speedMult ?? 1);
+
             if (dist < CHASE_RANGE) {
                 enemy.isChasing = true;
                 const angle = Phaser.Math.Angle.Between(
                     enemy.x, enemy.y, this.player.x, this.player.y,
                 );
                 enemy.setVelocity(
-                    Math.cos(angle) * ENEMY_SPEED,
-                    Math.sin(angle) * ENEMY_SPEED,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
                 );
                 enemy.setTint(0xff8888);
             } else {
@@ -401,16 +494,33 @@ export default class GameScene extends Phaser.Scene {
                     const angle = Phaser.Math.Angle.Between(
                         enemy.x, enemy.y, enemy.patrolTarget.x, enemy.patrolTarget.y,
                     );
+                    // Slower patrol for tanky/slow types
                     enemy.setVelocity(
-                        Math.cos(angle) * ENEMY_SPEED * 0.5,
-                        Math.sin(angle) * ENEMY_SPEED * 0.5,
+                        Math.cos(angle) * speed * 0.5,
+                        Math.sin(angle) * speed * 0.5,
                     );
                 } else {
                     enemy.setVelocity(0, 0);
                 }
             }
 
-            enemy.setScale(1 + Math.sin(time * 0.005 + enemy.x) * 0.05);
+            // Wizrobe-specific: shoot slow projectile at player if nearby
+            // (uses _enemyShoot; rate from config ~2.5s, slow proj)
+            if (enemy.shoots && dist < CHASE_RANGE * 1.5) {
+                // Init timer if missing (defensive)
+                if (!enemy.lastShotTime) enemy.lastShotTime = 0;
+                const cd = enemy.shootCd || 2500;
+                if (time - enemy.lastShotTime > cd) {
+                    this._enemyShoot(enemy);
+                    enemy.lastShotTime = time;
+                }
+            }
+
+            // Subtle bob animation for all enemy types
+            // Lynel base scale=1.2 (from config) for consistent visual + hitbox
+            // (prevents scale/body mismatch that could affect sword overlaps)
+            const baseScale = (enemy.type === 'lynel') ? 1.2 : 1;
+            enemy.setScale(baseScale + Math.sin(time * 0.005 + enemy.x) * 0.05);
         });
     }
 
@@ -419,6 +529,11 @@ export default class GameScene extends Phaser.Scene {
         enemy.isDying = true;
         enemy.body.enable = false;
         this.enemiesKilled++;
+
+        // Simple debug for Lynel kill (console only)
+        if (enemy.type === 'lynel') {
+            console.log(`Lynel KILLED! (HP was ${enemy.hp} -- check if after 3 hits)`);
+        }
 
         this._createDeathEffect(enemy.x, enemy.y);
 
@@ -464,29 +579,164 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // _enemyShoot — Wizrobe-specific: fires slow projectile toward player
+    // Uses same angle/dist logic as enemy AI; projectile uses fallback
+    // graphic. Now properly travels (offset spawn avoids instant obstacle hit);
+    // still destroyed on hit/obstacle or after timeout (~4s).
+    // -----------------------------------------------------------------------
+    _enemyShoot(enemy) {
+        // Only Wizrobes have .shoots=true; slow as specified
+        const angle = Phaser.Math.Angle.Between(
+            enemy.x, enemy.y, this.player.x, this.player.y,
+        );
+
+        // Offset spawn slightly toward player to avoid self/nearby obstacle collision
+        // (common cause of 'dropped' projs; ensures travel before destroy).
+        const offset = 16;  // ~half tile
+        const startX = enemy.x + Math.cos(angle) * offset;
+        const startY = enemy.y + Math.sin(angle) * offset;
+
+        // Simple debug for Wizrobe shot (console only; confirms fire + dir)
+        // Enhanced with pos/vel checks to validate movement (why not traveling?).
+        console.log(`Wizrobe shooting! angle=${angle.toFixed(2)}, toward player`);
+
+        // Create proj *then* configure body fully before group/velocity/collider
+        // (Fixes cases where vel=0 or early destroy: order, explicit body props,
+        // post-add velocity force. Keeps offset + timeout.)
+        const proj = this.physics.add.sprite(startX, startY, 'enemy_proj');
+        proj.setDepth(3);
+        proj.setScale(0.75);
+        // Visual: point toward player (optional rotation)
+        proj.setRotation(angle);
+
+        // Explicit body config for movement (Arcade physics: enable, no gravity,
+        // immovable=false ensures velocity applies; prevents 'dropped' static projs).
+        proj.body.enable = true;
+        proj.body.setAllowGravity(false);
+        proj.body.setImmovable(false);
+        // No world bounds collide (just obstacles)
+
+        this.enemyProjectiles.add(proj);
+
+        // Slow projectile speed from config
+        // Set velocity *after* group add (ensures body initialized).
+        const speed = enemy.projSpeed || 80;
+        proj.setVelocity(
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed,
+        );
+
+        // Debug: log initial state + movement check at 100ms/500ms
+        // (Validates vel applies; e.g., should show pos change ~40px by 500ms.)
+        console.log(`Proj spawned at (${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=(${proj.body.velocity.x.toFixed(0)},${proj.body.velocity.y.toFixed(0)})`);
+        this.time.delayedCall(100, () => {
+            if (proj.active) {
+                console.log(`Proj at 100ms: pos=(${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=${proj.body.velocity.x.toFixed(0)} (should be moving)`);
+            }
+        });
+        this.time.delayedCall(500, () => {
+            if (proj.active) {
+                console.log(`Proj at 500ms: pos=(${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=${proj.body.velocity.x.toFixed(0)} (should have traveled ~40px)`);
+            }
+        });
+
+        // Prevent memory leak / stray projectiles
+        this.time.delayedCall(PROJ_LIFETIME, () => {
+            if (proj.active) {
+                proj.destroy();
+            }
+        });
+    }
+
     // =======================================================================
-    // COMBAT — player damage
+    // COMBAT — player & enemy damage (extended for Lynel HP & Wizrobe projs)
+    // Shared _damage* helpers keep code DRY; supports multi-hit & projectiles.
     // =======================================================================
 
-    _onPlayerHit(player, enemy) {
+    // -----------------------------------------------------------------------
+    // _damageEnemy — handles variable HP (Goblin=1 hit, Lynel=3 hits)
+    // Flash effect on hit; only kill when HP depleted. Follows Goblin death
+    // pattern but generalized.
+    // -----------------------------------------------------------------------
+    _damageEnemy(enemy) {
         if (enemy.isDying) return;
+
+        // Decrement type-specific HP (default 1 for backward compat)
+        // Restored simple .hp (data storage + extras broke game; HP bug was in overlap/scale).
+        const oldHp = enemy.hp;
+        enemy.hp = (enemy.hp || 1) - 1;
+
+        // Simple debug log for Lynel hits (console only; no custom funcs to avoid crashes).
+        // Check console when attacking Lynel.
+        if (enemy.type === 'lynel') {
+            console.log(`Lynel hit! HP: ${oldHp} -> ${enemy.hp}/3 (dying=${enemy.isDying}, will kill? ${enemy.hp <= 0})`);
+        }
+
+        // Brief white flash feedback (works for all enemy types)
+        enemy.setTint(0xffffff);
+        this.time.delayedCall(150, () => {
+            // Safety check in case enemy destroyed meanwhile
+            if (enemy.active) {
+                enemy.clearTint();
+            }
+        });
+
+        if (enemy.hp <= 0) {
+            // Delegate to existing kill logic (death effect, heart drop, etc.)
+            this._killEnemy(enemy);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // _damagePlayer — core damage/knockback shared by:
+    //   - enemy body collision (_onPlayerHit)
+    //   - Wizrobe projectile (_onPlayerHitByProj)
+    // Iframes prevent spam; extracted from original for reuse.
+    // -----------------------------------------------------------------------
+    _damagePlayer(source) {
+        // source: enemy sprite or projectile sprite (for angle calc)
         const now = this.time.now;
         if (now - this.lastHitTime < IFRAMES_DUR) return;
 
         this.lastHitTime = now;
         this.playerHP -= ENEMY_DMG;
 
-        const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, player.x, player.y);
-        player.setVelocity(Math.cos(angle) * 300, Math.sin(angle) * 300);
+        // Knockback direction away from source
+        const angle = Phaser.Math.Angle.Between(
+            source.x, source.y, this.player.x, this.player.y,
+        );
+        this.player.setVelocity(
+            Math.cos(angle) * 300, Math.sin(angle) * 300
+        );
 
         this.cameras.main.shake(100, 0.01);
-        player.setTint(0xff0000);
-        this.time.delayedCall(150, () => player.clearTint());
+        this.player.setTint(0xff0000);
+        this.time.delayedCall(150, () => this.player.clearTint());
 
         if (this.playerHP <= 0) {
             this.playerHP = 0;
             this._showGameOver();
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // _onPlayerHit — player touches enemy (melee damage from Goblin/Lynel/etc)
+    // -----------------------------------------------------------------------
+    _onPlayerHit(player, enemy) {
+        if (enemy.isDying) return;
+        // Delegate to shared damage func
+        this._damagePlayer(enemy);
+    }
+
+    // -----------------------------------------------------------------------
+    // _onPlayerHitByProj — player hit by Wizrobe's slow projectile
+    // Destroys the proj immediately (unlike persistent enemy bodies)
+    // -----------------------------------------------------------------------
+    _onPlayerHitByProj(player, proj) {
+        // Apply damage then cleanup proj
+        this._damagePlayer(proj);
+        proj.destroy();
     }
 
     // =======================================================================
@@ -506,6 +756,9 @@ export default class GameScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '16px',
             color: '#ffffff', stroke: '#000000', strokeThickness: 3,
         }).setScrollFactor(0).setDepth(100);
+
+        // Overlay UI elements (hearts, enemies count, game over/victory)
+        // (Debug text removed per request; console logs remain for dev if needed.)
 
         this.overlayBg = this.add.rectangle(512, 384, 1024, 768, 0x000000, 0.6)
             .setScrollFactor(0).setDepth(200).setVisible(false);
@@ -531,6 +784,9 @@ export default class GameScene extends Phaser.Scene {
 
         const remaining = NUM_ENEMIES - this.enemiesKilled;
         this.enemyText.setText(`Enemies: ${remaining}/${NUM_ENEMIES}`);
+
+        // (Debug logging for Lynel/Wizrobe removed from screen per request;
+        // console logs remain minimal for dev troubleshooting if needed.)
 
         if (remaining <= 0 && !this.victory) {
             this._showVictory();
