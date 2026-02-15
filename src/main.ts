@@ -1,7 +1,7 @@
 // ===========================================================================
 // Wild Adventure — entry point
 //
-// Boots Phaser 3 with the GameScene.
+// Boots Phaser 4 with the GameScene.
 // Run with:  npm run dev        (Vite dev server, hot reload)
 //            npm run build      (production build → dist/)
 //            npm run preview    (serve the production build)

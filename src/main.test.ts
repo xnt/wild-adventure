@@ -1,9 +1,11 @@
 // Tests for main.ts (matches file-under-test).
 // Basic config check (mocks Phaser.Game to avoid constructor issues).
-// Uses a local vi.mock so we never load real Phaser (avoids phaser3spectorjs etc.).
+// Uses a local vi.mock so we never load real Phaser (avoids phaser3spectorjs [Phaser 3-era optional] etc.).
 
 import { describe, it, expect, vi } from 'vitest';
 
+// Keep as function expr (ctor for Phaser.Game mock; arrow not constructor, breaks 'new' in main.ts).
+// Preserves dynamic 'this'/prototype; per constraint for cases relying on constructor behavior.
 const GameMock = vi.fn().mockImplementation(function Game() {});
 
 // Minimal Scene constructor so GameScene can extend it when main.ts is loaded.

@@ -21,7 +21,7 @@ import Phaser from 'phaser';
  * Generate any missing textures using Phaser graphics.
  * Safe to call on every scene restart — skips textures that already exist.
  */
-export function generateFallbacks(scene: Phaser.Scene): void {
+export const generateFallbacks = (scene: Phaser.Scene): void => {
     const g = scene.add.graphics();
 
     // ---- Grass (green tile with darker spots) ----
@@ -176,7 +176,7 @@ export function generateFallbacks(scene: Phaser.Scene): void {
     }
 
     g.destroy();
-}
+};
 
 // ---------------------------------------------------------------------------
 // Player fallback spritesheet (canvas-drawn, 512×512, 16-col grid)
@@ -185,7 +185,8 @@ export function generateFallbacks(scene: Phaser.Scene): void {
 // Exported for unit testing (internal helper; typed for canvas/Phaser texture creation).
 // Called by generateFallbacks; exposed to validate attack sword render etc.
 // (Keep private-style name; re-evaluate in refactor.)
-export function generatePlayerFallback(scene: Phaser.Scene): void {
+
+export const generatePlayerFallback = (scene: Phaser.Scene): void => {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
@@ -196,6 +197,7 @@ export function generatePlayerFallback(scene: Phaser.Scene): void {
     // dir: 0 = N, 1 = S, 2 = E, 3 = W
     // Explicit param types to eliminate implicit any.
     // (col/row: grid pos; dir: cardinal; flags for anim state; walkFrame: 0/1 for alt pose)
+
     const drawChar = (
         col: number,
         row: number,
@@ -291,4 +293,4 @@ export function generatePlayerFallback(scene: Phaser.Scene): void {
         frameWidth: 32,
         frameHeight: 32,
     });
-}
+};

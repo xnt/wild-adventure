@@ -1,7 +1,7 @@
 {
   "name": "wild-adventure",
   "version": "1.0.0",
-  "description": "Top-down Zelda-like adventure game prototype built with Phaser 3",
+  "description": "Top-down Zelda-like adventure game prototype built with Phaser 4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "phaser": "^3.80.1"
+    "phaser": "^4.0.0-rc.6"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",

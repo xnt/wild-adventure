@@ -20,8 +20,8 @@ HTMLCanvasElement.prototype.getContext = vi.fn().mockImplementation(() => ({
 })) as any;
 
 // Full mock for 'phaser' to prevent real import (avoids missing optional deps like
-// phaser3spectorjs, WebGL init, etc.). Minimal stubs for Scene/Graphics/Math used in tests/utils.
-// (Common for Phaser unit tests; expand or use phaser-test-utils in iteration.)
+// phaser3spectorjs [Phaser 3-era], WebGL init, etc.). Minimal stubs for Scene/Graphics/Math used in tests/utils.
+// (Common for Phaser unit tests; works for v4 RC; expand or use phaser-test-utils in iteration.)
 vi.mock('phaser', () => ({
   default: {
     GameObjects: {

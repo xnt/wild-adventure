@@ -1,6 +1,6 @@
 # Wild Adventure
 
-A top-down Zelda-like action-adventure prototype built with **Phaser 3** and bundled with **Vite**.
+A top-down Zelda-like action-adventure prototype built with **Phaser 4** (RC) and bundled with **Vite**. (See PHASER4_MIGRATION.md for migration details.)
 
 ![Gameplay Screenshot](./Screenshot.png)
 
@@ -44,13 +44,14 @@ The project is now fully TypeScript (`*.ts` sources with `tsconfig.json`; Vite t
 npm run type-check  # tsc --noEmit
 npm test            # vitest watch mode
 npm run test:run    # CI-style run
-npm run test:coverage  # Generates V8 coverage report (console + HTML/JSON in ./coverage/; ~42% baseline, utils/map high; excludes tests/mocks)
+npm run test:coverage  # Generates V8 coverage report (console + HTML/JSON in ./coverage/; ~69% now, utils high via extracts; excludes tests/mocks)
 npm run test:ui     # Vitest UI dashboard
 ```
 
 - **File convention**: `<target>.test.ts` (e.g., `gameSceneUtils.test.ts` tests `gameSceneUtils.ts`).
 - **Refactors**: Extracted non-UI logic to `gameSceneUtils.ts` (effects/AI/math for readability/tests) + `types.ts` (shared Phaser types); GameScene thinned for maintainability.
 - **Mocks**: Vitest/jsdom + setup for Phaser (enables unit tests on UI-heavy code).
+
 - **Coverage**: Use report to prioritize (e.g., GameScene next).
 
 ## Project Structure

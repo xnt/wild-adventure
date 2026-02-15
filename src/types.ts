@@ -35,5 +35,8 @@ export type PhysicsCallbackObject =
 /** Structural type for objects with position (x/y; simplifies damage/knockback). */
 export type PositionedObject = { x: number; y: number };
 
+/** Cardinal facing direction (snapped from velocity/input; used in anim/attack calcs). */
+export type Facing = 'up' | 'down' | 'left' | 'right';
+
 // Re-export EnemyConfig from constants for convenience.
 export type { EnemyConfig } from './constants.js';

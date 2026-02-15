@@ -1,27 +1,26 @@
 {
-    "compilerOptions": {
-      "target": "ESNext",
-      "useDefineForClassFields": true,
-      "module": "ESNext",
-      // "bundler" for Vite's ESM/TS resolution (matches vite.config.ts)
-      "moduleResolution": "bundler",
-      "strict": true,
-      // Ensures no implicit any; explicit for clarity (strict already enables).
-      "noImplicitAny": true,
-      "jsx": "preserve",
-      "sourceMap": true,
-      "resolveJsonModule": true,
-      "isolatedModules": true,
-      "esModuleInterop": true,
-      "lib": ["ESNext", "DOM"],
-      "skipLibCheck": true,
-      "noEmit": true,
-      "allowJs": false,
-      "types": ["phaser"]
-    },
-    "include": ["src", "src/**/*.test.ts", "vitest.setup.ts"],
-    "exclude": ["node_modules", "dist"],
-    // Vite config runs in Node; reference separate tsconfig for it to avoid DOM conflicts
-    "references": [{ "path": "./tsconfig.node.json" }]
-  }
-  
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    // "bundler" for Vite's ESM/TS resolution (matches vite.config.ts)
+    "moduleResolution": "bundler",
+    "strict": true,
+    // Ensures no implicit any; explicit for clarity (strict already enables).
+    "noImplicitAny": true,
+    "jsx": "preserve",
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ESNext", "DOM"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowJs": false,
+    "types": ["phaser"]
+  },
+  "include": ["src", "src/**/*.test.ts", "vitest.setup.ts"],
+  "exclude": ["node_modules", "dist"],
+  // Vite config runs in Node; reference separate tsconfig for it to avoid DOM conflicts
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

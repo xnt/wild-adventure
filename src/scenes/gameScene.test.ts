@@ -42,7 +42,9 @@ describe('scenes/GameScene.ts', () => {
         scene.gameOver = true;
         scene.restartKey = {} as any;
         vi.spyOn(Phaser.Input.Keyboard, 'JustDown').mockReturnValue(true);
-        const restartSpy = vi.spyOn(scene.scene, 'restart').mockImplementation(() => {});
+        // In Phaser 4, ScenePlugin.restart returns the plugin itself (sig: (data?: object) => ScenePlugin).
+        // Mock impl returns the plugin to match type (prevents TS error on spy).
+        const restartSpy = vi.spyOn(scene.scene, 'restart').mockImplementation(() => scene.scene);
 
         scene.update(1000, 16);
 
