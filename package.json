@@ -7,12 +7,22 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 4173"
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "phaser": "^3.80.1"
   },
   "devDependencies": {
-    "vite": "^6.1.0"
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
+    "jsdom": "^28.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.1.0",
+    "vitest": "^4.0.18"
   }
 }

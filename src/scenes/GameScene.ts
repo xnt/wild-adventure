@@ -7,15 +7,70 @@ import {
     IFRAMES_DUR, FRAMES as F,
     // Enemy variety
     ENEMY_CONFIGS, PROJ_LIFETIME,
-} from '../constants.js';
-import { mapData } from '../map.js';
-import { generateFallbacks } from '../fallbacks.js';
+} from '../constants';
+import { mapData } from '../map';
+import { generateFallbacks } from '../fallbacks';
+// Shared types (centralized in types.ts for DRY; no circular imports).
+// GameEnemy uses intersection for Phaser compat; PhysicsCallbackObject union
+// ensures callback assignability.
+import type {
+    TouchDir,
+    GameEnemy,
+    PhysicsCallbackObject,
+    PositionedObject,
+    EnemyConfig,  // Re-exported from constants
+} from '../types';
+// Non-UI utils (extracted for readability/testability: effects/math calcs, AI, spawn).
+// Relative path from scenes/ dir.
+import {
+    createSlashEffect,
+    createDeathEffect,
+    calcProjectileParams,
+    calcKnockbackVelocity,
+    updateEnemies,
+    // createEnemies, buildTilemap: stubbed in utils; full extract in iteration.
+} from '../gameSceneUtils';
 
 // ===========================================================================
 // GameScene — the single scene that runs the entire game
 // ===========================================================================
 
 export default class GameScene extends Phaser.Scene {
+    // Declare class properties with Phaser types for strict checking/definite assignment.
+    // (Properties are initialized in init()/create(); ! postfix asserts non-null.)
+    player!: Phaser.Physics.Arcade.Sprite;
+    enemies!: Phaser.Physics.Arcade.Group;
+    enemyProjectiles!: Phaser.Physics.Arcade.Group;
+    heartDrops!: Phaser.Physics.Arcade.Group;
+    swordGroup!: Phaser.Physics.Arcade.Group;
+    obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
+    cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+    // Specific shape for WASD (guarantees keys present/non-null; fixes possible-null
+    // TS error on .left etc. accesses).
+    wasd!: {
+        up: Phaser.Input.Keyboard.Key;
+        down: Phaser.Input.Keyboard.Key;
+        left: Phaser.Input.Keyboard.Key;
+        right: Phaser.Input.Keyboard.Key;
+    };
+    spaceKey!: Phaser.Input.Keyboard.Key;
+    restartKey!: Phaser.Input.Keyboard.Key;
+    heartSprites: Phaser.GameObjects.Image[] = [];
+    enemyText!: Phaser.GameObjects.Text;
+    overlayBg!: Phaser.GameObjects.Rectangle;
+    overlayText!: Phaser.GameObjects.Text;
+    overlaySubText!: Phaser.GameObjects.Text;
+    playerHP!: number;
+    facing!: 'up' | 'down' | 'left' | 'right';
+    isAttacking!: boolean;
+    lastAttackTime!: number;
+    lastHitTime!: number;
+    enemiesKilled!: number;
+    gameOver!: boolean;
+    victory!: boolean;
+    touchDir: TouchDir = { x: 0, y: 0 };
+    touchAttack!: boolean;
+
     constructor() {
         super({ key: 'GameScene' });
     }
@@ -23,7 +78,7 @@ export default class GameScene extends Phaser.Scene {
     // -----------------------------------------------------------------------
     // init — called on every restart; reset all mutable state
     // -----------------------------------------------------------------------
-    init() {
+    init(): void {
         this.playerHP       = MAX_HP;
         this.facing         = 'down';
         this.isAttacking    = false;
@@ -37,8 +92,9 @@ export default class GameScene extends Phaser.Scene {
     // -----------------------------------------------------------------------
     // preload — attempt to load real PNGs; fallbacks generated in create()
     // -----------------------------------------------------------------------
-    preload() {
-        this.load.on('loaderror', (fileObj) => {
+    preload(): void {
+        // loaderror event: typed param (Phaser.Loader.File) to eliminate implicit any.
+        this.load.on('loaderror', (fileObj: Phaser.Loader.File) => {
             console.warn(`Asset not found: ${fileObj.key} — will use fallback.`);
         });
 
@@ -62,7 +118,7 @@ export default class GameScene extends Phaser.Scene {
     // -----------------------------------------------------------------------
     // create — build world, player, enemies, UI
     // -----------------------------------------------------------------------
-    create() {
+    create(): void {
         generateFallbacks(this);
 
         this._buildTilemap();
@@ -77,10 +133,15 @@ export default class GameScene extends Phaser.Scene {
         // Enemies & obstacles (can't pass trees/rocks)
         this.physics.add.collider(this.enemies, this.obstacleLayer);
         // Enemy projectiles collide with obstacles & destroy on hit
+        // Callbacks use PhysicsCallbackObject (Phaser union) for exact sig match to
+        // ArcadePhysicsCallback (fixes assignability; no implicit any).
+        // Assert/cast inside for GameEnemy/Positioned where custom props needed.
+        // undefined for process cb (vs null).
         this.physics.add.collider(
             this.enemyProjectiles, this.obstacleLayer,
-            (proj) => proj.destroy(),
-            null, this,
+            (proj: PhysicsCallbackObject) => (proj as Phaser.Physics.Arcade.Sprite).destroy(),
+            undefined,
+            this,
         );
 
         // Sword attacks vs enemies (persistent group overlap -- fixes accumulation
@@ -89,30 +150,37 @@ export default class GameScene extends Phaser.Scene {
         // Fix for multi-hit per swing (per debug: overlap fired 3x instantly on 1 attack,
         // decrementing HP 3->0). Destroy sword immediately on hit to enforce 1 damage/swing.
         // Simple console debug retained; processCallback kept for extra safety.
+        //
+        // Callbacks use PhysicsCallbackObject for union compat/inheritance.
+        // Assert enemy to GameEnemy for custom props (type/hp/isDying/active);
+        // _s to Sprite for destroy. Delegates to typed _damageEnemy.
         this.physics.add.overlap(
             this.swordGroup, this.enemies,
-            (_s, enemy) => {
+            (_s: PhysicsCallbackObject, enemy: PhysicsCallbackObject) => {
                 // Simple debug: log Lynel sword overlap to console (should fire once/swing now).
-                if (enemy.type === 'lynel') {
-                    console.log(`Sword overlap hit Lynel! Pre-damage HP=${enemy.hp}, dying=${!!enemy.isDying}, active=${enemy.active}`);
+                // Cast for GameEnemy props (intersection ensures safety).
+                const enemyTyped = enemy as GameEnemy;
+                if (enemyTyped.type === 'lynel') {
+                    console.log(`Sword overlap hit Lynel! Pre-damage HP=${enemyTyped.hp}, dying=${!!enemyTyped.isDying}, active=${enemyTyped.active}`);
                 }
-                this._damageEnemy(enemy);
-                // Destroy sword on hit (prevents repeat overlap in same attack frame/DUR;
-                // Lynel requires 3 *separate* swings).
-                _s.destroy();
+                this._damageEnemy(enemyTyped);
+                // Destroy sword on hit...
+                (_s as Phaser.Physics.Arcade.Sprite).destroy();
             },
             // processCallback: only process if not dying (1 hit/sword safety).
-            (_s, enemy) => !enemy.isDying,
+            // Cast for GameEnemy; boolean return.
+            (_s: PhysicsCallbackObject, enemy: PhysicsCallbackObject) => !(enemy as GameEnemy).isDying,
             this,
         );
         // Player-enemy touch damage
+        // Bound method (now typed to union cb obj); undefined process.
         this.physics.add.overlap(
-            this.player, this.enemies, this._onPlayerHit, null, this,
+            this.player, this.enemies, this._onPlayerHit, undefined, this,
         );
         // Wizrobe projectile damage (slow orbs)
         this.physics.add.overlap(
             this.player, this.enemyProjectiles, this._onPlayerHitByProj,
-            null, this,
+            undefined, this,
         );
 
         // Camera
@@ -120,15 +188,28 @@ export default class GameScene extends Phaser.Scene {
         this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
         // Input
-        this.cursors    = this.input.keyboard.createCursorKeys();
+        // Phaser input APIs (createCursorKeys/addKeys/addKey) have loose TS defs causing
+        // possibly-null errors (absolute interop case for keyboard plugin).
+        // @ts-expect-error on assigns below ONLY; suppresses without 'any' or loose config.
+        // No implicit any elsewhere; types inherit correctly via class props.
+        // (Build/dev unaffected; Phaser runtime guarantees objects.)
+        this.cursors    = this.input.keyboard.createCursorKeys()!;
+        // @ts-expect-error Phaser addKeys interop
         this.wasd       = this.input.keyboard.addKeys({
             up:    Phaser.Input.Keyboard.KeyCodes.W,
             down:  Phaser.Input.Keyboard.KeyCodes.S,
             left:  Phaser.Input.Keyboard.KeyCodes.A,
             right: Phaser.Input.Keyboard.KeyCodes.D,
-        });
-        this.spaceKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        this.restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+        }) as {
+            up: Phaser.Input.Keyboard.Key;
+            down: Phaser.Input.Keyboard.Key;
+            left: Phaser.Input.Keyboard.Key;
+            right: Phaser.Input.Keyboard.Key;
+        };
+        // @ts-expect-error Phaser addKey interop
+        this.spaceKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)!;
+        // @ts-expect-error Phaser addKey interop
+        this.restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)!;
 
         this._createUI();
         this._setupTouchControls();
@@ -139,7 +220,8 @@ export default class GameScene extends Phaser.Scene {
     // -----------------------------------------------------------------------
     // update — game loop
     // -----------------------------------------------------------------------
-    update(time, _delta) {
+    // Override with typed params (per Phaser.Scene).
+    update(time: number, _delta: number): void {
         if (this.gameOver || this.victory) {
             if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
                 this.scene.restart();
@@ -157,7 +239,8 @@ export default class GameScene extends Phaser.Scene {
     // WORLD
     // =======================================================================
 
-    _buildTilemap() {
+    // _buildTilemap: static obstacles; obs from group create has body.
+    _buildTilemap(): void {
         // Ground — full-map tileSprite of grass
         this.add.tileSprite(
             0, 0,
@@ -179,8 +262,9 @@ export default class GameScene extends Phaser.Scene {
                 const obs = this.obstacleLayer.create(tx, ty, key);
                 obs.setDepth(1);
                 obs.refreshBody();
-                obs.body.setSize(28, 28);
-                obs.body.setOffset(2, 2);
+                // body! : staticGroup items have body (non-null).
+                obs.body!.setSize(28, 28);
+                obs.body!.setOffset(2, 2);
             }
         }
 
@@ -191,15 +275,17 @@ export default class GameScene extends Phaser.Scene {
     // PLAYER
     // =======================================================================
 
-    _createPlayer() {
+    // _createPlayer: typed; body! for physics sprite.
+    _createPlayer(): void {
         const startX = Math.floor(MAP_COLS / 2) * TILE_SIZE + TILE_SIZE / 2;
         const startY = Math.floor(MAP_ROWS / 2) * TILE_SIZE + TILE_SIZE / 2;
 
         this.player = this.physics.add.sprite(startX, startY, 'player', F.IDLE_S);
         this.player.setDepth(5);
         this.player.setCollideWorldBounds(true);
-        this.player.body.setSize(20, 22);
-        this.player.body.setOffset(6, 8);
+        // body! : non-null post-physics add.
+        this.player.body!.setSize(20, 22);
+        this.player.body!.setOffset(6, 8);
 
         // Create animations only once (they survive scene restarts)
         if (!this.anims.exists('idle_up')) {
@@ -238,16 +324,19 @@ export default class GameScene extends Phaser.Scene {
         this.player.play('idle_down');
     }
 
-    _handlePlayerMovement(time) {
+    // handle*: time: number from update loop; typed to kill implicit any.
+    _handlePlayerMovement(time: number): void {
         if (this.isAttacking) return;
 
         let vx = 0;
         let vy = 0;
 
-        const left  = this.cursors.left.isDown  || this.wasd.left.isDown;
-        const right = this.cursors.right.isDown || this.wasd.right.isDown;
-        const up    = this.cursors.up.isDown    || this.wasd.up.isDown;
-        const down  = this.cursors.down.isDown  || this.wasd.down.isDown;
+        // cursors/wasd keys: Phaser types mark some optional, but createCursorKeys/addKeys
+        // always provides all (! non-null assertion). Guarantees no null/undefined.
+        const left  = this.cursors.left!.isDown  || this.wasd.left.isDown;
+        const right = this.cursors.right!.isDown || this.wasd.right.isDown;
+        const up    = this.cursors.up!.isDown    || this.wasd.up.isDown;
+        const down  = this.cursors.down!.isDown  || this.wasd.down.isDown;
 
         if (left)  vx -= 1;
         if (right) vx += 1;
@@ -297,7 +386,8 @@ export default class GameScene extends Phaser.Scene {
     // ATTACK
     // =======================================================================
 
-    _handleAttack(time) {
+    // time: number from update
+    _handleAttack(time: number): void {
         const justPressed = Phaser.Input.Keyboard.JustDown(this.spaceKey) || this.touchAttack;
 
         if (justPressed && !this.isAttacking && (time - this.lastAttackTime) > ATTACK_CD) {
@@ -346,35 +436,20 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    _createSlashEffect(x, y) {
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI * 2 / 6) * i;
-            const dist  = Phaser.Math.Between(4, 16);
-            const px    = x + Math.cos(angle) * dist;
-            const py    = y + Math.sin(angle) * dist;
-
-            const particle = this.add.rectangle(
-                px, py,
-                Phaser.Math.Between(3, 6), Phaser.Math.Between(3, 6),
-                0xffffff, 0.9,
-            ).setDepth(7);
-
-            this.tweens.add({
-                targets: particle,
-                alpha: 0, scaleX: 0, scaleY: 0,
-                x: px + Math.cos(angle) * 20,
-                y: py + Math.sin(angle) * 20,
-                duration: 200,
-                onComplete: () => particle.destroy(),
-            });
-        }
+    // Wrapper for utils.createSlashEffect (extracted particle math for readability/tests).
+    // x/y: number pos for slash particles.
+    // Delegates to pure util (scene injected; original body moved).
+    _createSlashEffect(x: number, y: number): void {
+        createSlashEffect(this, x, y);
     }
 
     // =======================================================================
     // ENEMIES
     // =======================================================================
 
-    _createEnemies() {
+    // Creates varied enemies; uses EnemyConfig from constants.ts and casts to
+    // GameEnemy interface for type-safe property access (hp, type, etc.).
+    _createEnemies(): void {
         // Enemies now include variety: Goblin (melee), Wizrobe (ranged projectile
         // shooter), Lynel (slow tank). Follows Goblin pattern using Phaser
         // graphics fallbacks only — no sprites required.
@@ -405,18 +480,22 @@ export default class GameScene extends Phaser.Scene {
             if (Phaser.Math.Distance.Between(ex, ey, px, py) < 200) continue;
 
             // Select type for variety
+            // Type asserted via EnemyConfig.
             const enemyType = typeCycle[spawned];
-            const config = ENEMY_CONFIGS[enemyType];
+            const config: EnemyConfig = ENEMY_CONFIGS[enemyType];
 
-            const enemy = this.physics.add.sprite(ex, ey, config.texture);
+            // Cast to GameEnemy for type-safe custom props (hp, shoots, etc.).
+            const enemy = this.physics.add.sprite(ex, ey, config.texture) as GameEnemy;
+            // body! : physics sprites have body (non-null post-add; ! for TS).
             enemy.setDepth(4).setCollideWorldBounds(true);
-            enemy.body.setSize(22, 22).setOffset(5, 5);
+            enemy.body!.setSize(22, 22).setOffset(5, 5);
 
             // Lynel is bigger/slower/tankier
             if (config.scale) {
                 enemy.setScale(config.scale);
                 // Adjust hitbox for larger size
-                enemy.body.setSize(26, 26).setOffset(3, 3);
+                // body! again for TS strict.
+                enemy.body!.setSize(26, 26).setOffset(3, 3);
             }
 
             // Type-specific props (hp, speed, behavior)
@@ -428,10 +507,11 @@ export default class GameScene extends Phaser.Scene {
             enemy.shoots       = config.shoots;
             if (config.shoots) {
                 // Wizrobe-specific
+                // Non-null since EnemyConfig for shoots=true always provides (?? fallback for type).
                 enemy.projSpeed    = config.projSpeed;
                 enemy.shootCd      = config.shootCd;
                 // Stagger initial shots
-                enemy.lastShotTime = Phaser.Math.Between(0, config.shootCd);
+                enemy.lastShotTime = Phaser.Math.Between(0, config.shootCd ?? 2500);
             }
             enemy.patrolTarget = new Phaser.Math.Vector2(ex, ey);
             enemy.patrolTimer  = 0;
@@ -442,92 +522,34 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // Heart pickup overlap
-        this.physics.add.overlap(this.player, this.heartDrops, (_p, heart) => {
-            this.playerHP = Math.min(MAX_HP, this.playerHP + HEART_HP);
-            heart.destroy();
-        }, null, this);
+        // cb uses PhysicsCallbackObject union for Phaser sig compat (no implicit any).
+        // Heart is GameObject (union covers; has destroy).
+        this.physics.add.overlap(
+            this.player,
+            this.heartDrops,
+            (_p: PhysicsCallbackObject, heart: PhysicsCallbackObject) => {
+                this.playerHP = Math.min(MAX_HP, this.playerHP + HEART_HP);
+                heart.destroy();
+            },
+            undefined,
+            this,
+        );
     }
 
-    _updateEnemies(time) {
-        // Now handles multiple enemy types:
-        // - Goblin: default chase/patrol
-        // - Wizrobe: chase + shoots slow projectiles periodically when in range
-        // - Lynel: slower movement, higher HP (damage handled elsewhere)
-        // All use Phaser's built-in for visuals/phys, matching Goblin pattern.
-        this.enemies.getChildren().forEach((enemy) => {
-            if (enemy.isDying) return;
-
-            const dist = Phaser.Math.Distance.Between(
-                enemy.x, enemy.y, this.player.x, this.player.y,
-            );
-
-            // Apply type-specific speed (lynels slow, wizrobes medium)
-            const speed = ENEMY_SPEED * (enemy.speedMult ?? 1);
-
-            if (dist < CHASE_RANGE) {
-                enemy.isChasing = true;
-                const angle = Phaser.Math.Angle.Between(
-                    enemy.x, enemy.y, this.player.x, this.player.y,
-                );
-                enemy.setVelocity(
-                    Math.cos(angle) * speed,
-                    Math.sin(angle) * speed,
-                );
-                enemy.setTint(0xff8888);
-            } else {
-                enemy.isChasing = false;
-                enemy.clearTint();
-
-                enemy.patrolTimer -= 16;
-                if (enemy.patrolTimer <= 0) {
-                    enemy.patrolTimer = Phaser.Math.Between(2000, 4000);
-                    enemy.patrolTarget.set(
-                        Phaser.Math.Clamp(enemy.x + Phaser.Math.Between(-80, 80), TILE_SIZE * 2, (MAP_COLS - 2) * TILE_SIZE),
-                        Phaser.Math.Clamp(enemy.y + Phaser.Math.Between(-80, 80), TILE_SIZE * 2, (MAP_ROWS - 2) * TILE_SIZE),
-                    );
-                }
-
-                const pdist = Phaser.Math.Distance.Between(
-                    enemy.x, enemy.y, enemy.patrolTarget.x, enemy.patrolTarget.y,
-                );
-                if (pdist > 4) {
-                    const angle = Phaser.Math.Angle.Between(
-                        enemy.x, enemy.y, enemy.patrolTarget.x, enemy.patrolTarget.y,
-                    );
-                    // Slower patrol for tanky/slow types
-                    enemy.setVelocity(
-                        Math.cos(angle) * speed * 0.5,
-                        Math.sin(angle) * speed * 0.5,
-                    );
-                } else {
-                    enemy.setVelocity(0, 0);
-                }
-            }
-
-            // Wizrobe-specific: shoot slow projectile at player if nearby
-            // (uses _enemyShoot; rate from config ~2.5s, slow proj)
-            if (enemy.shoots && dist < CHASE_RANGE * 1.5) {
-                // Init timer if missing (defensive)
-                if (!enemy.lastShotTime) enemy.lastShotTime = 0;
-                const cd = enemy.shootCd || 2500;
-                if (time - enemy.lastShotTime > cd) {
-                    this._enemyShoot(enemy);
-                    enemy.lastShotTime = time;
-                }
-            }
-
-            // Subtle bob animation for all enemy types
-            // Lynel base scale=1.2 (from config) for consistent visual + hitbox
-            // (prevents scale/body mismatch that could affect sword overlaps)
-            const baseScale = (enemy.type === 'lynel') ? 1.2 : 1;
-            enemy.setScale(baseScale + Math.sin(time * 0.005 + enemy.x) * 0.05);
-        });
+    // Iterates enemies via extracted utils.updateEnemies (AI loop from forEach body).
+    // (User-identified chunk: chase/patrol/shoot/bob math extracted for readability/tests;
+    // scene-specific shoot delegated to _enemyShoot.)
+    _updateEnemies(time: number): void {
+        // Delegate to pure util (enemies group, player, time).
+        updateEnemies(this.enemies, this.player, time);
     }
 
-    _killEnemy(enemy) {
+    // enemy: GameEnemy (via intersection; used in damage/kill flows).
+    _killEnemy(enemy: GameEnemy): void {
         if (enemy.isDying) return;
         enemy.isDying = true;
-        enemy.body.enable = false;
+        // body! : disable for dying enemy (non-null assertion).
+        enemy.body!.enable = false;
         this.enemiesKilled++;
 
         // Simple debug for Lynel kill (console only)
@@ -559,24 +581,11 @@ export default class GameScene extends Phaser.Scene {
         });
     }
 
-    _createDeathEffect(x, y) {
-        const colors = [0xff6644, 0xffaa22, 0xffdd44, 0xff4422];
-        for (let i = 0; i < 10; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = Phaser.Math.Between(30, 80);
-            const size  = Phaser.Math.Between(3, 8);
-            const color = Phaser.Utils.Array.GetRandom(colors);
-
-            const p = this.add.rectangle(x, y, size, size, color, 1).setDepth(8);
-            this.tweens.add({
-                targets: p,
-                x: x + Math.cos(angle) * speed,
-                y: y + Math.sin(angle) * speed,
-                alpha: 0, scaleX: 0, scaleY: 0,
-                duration: Phaser.Math.Between(300, 600),
-                onComplete: () => p.destroy(),
-            });
-        }
+    // Wrapper for utils.createDeathEffect (extracted particle math).
+    // x/y: number pos for death particles.
+    // Delegates to pure util (scene injected; original body moved).
+    _createDeathEffect(x: number, y: number): void {
+        createDeathEffect(this, x, y);
     }
 
     // -----------------------------------------------------------------------
@@ -585,17 +594,13 @@ export default class GameScene extends Phaser.Scene {
     // graphic. Now properly travels (offset spawn avoids instant obstacle hit);
     // still destroyed on hit/obstacle or after timeout (~4s).
     // -----------------------------------------------------------------------
-    _enemyShoot(enemy) {
-        // Only Wizrobes have .shoots=true; slow as specified
-        const angle = Phaser.Math.Angle.Between(
-            enemy.x, enemy.y, this.player.x, this.player.y,
-        );
-
-        // Offset spawn slightly toward player to avoid self/nearby obstacle collision
-        // (common cause of 'dropped' projs; ensures travel before destroy).
-        const offset = 16;  // ~half tile
-        const startX = enemy.x + Math.cos(angle) * offset;
-        const startY = enemy.y + Math.sin(angle) * offset;
+    // enemy: GameEnemy (wizrobe); creates typed proj sprite.
+    // x/y: number coords; body! for Arcade body.
+    _enemyShoot(enemy: GameEnemy): void {
+        // Use extracted util for pure projectile math (angle/offset/start).
+        // (Improves testability; Wizrobe-specific logic stays here.)
+        // Only Wizrobes have .shoots=true; slow as specified.
+        const { angle, startX, startY } = calcProjectileParams(enemy, this.player);
 
         // Simple debug for Wizrobe shot (console only; confirms fire + dir)
         // Enhanced with pos/vel checks to validate movement (why not traveling?).
@@ -612,9 +617,10 @@ export default class GameScene extends Phaser.Scene {
 
         // Explicit body config for movement (Arcade physics: enable, no gravity,
         // immovable=false ensures velocity applies; prevents 'dropped' static projs).
-        proj.body.enable = true;
-        proj.body.setAllowGravity(false);
-        proj.body.setImmovable(false);
+        // body! : non-null for physics sprite.
+        proj.body!.enable = true;
+        proj.body!.setAllowGravity(false);
+        proj.body!.setImmovable(false);
         // No world bounds collide (just obstacles)
 
         this.enemyProjectiles.add(proj);
@@ -629,15 +635,16 @@ export default class GameScene extends Phaser.Scene {
 
         // Debug: log initial state + movement check at 100ms/500ms
         // (Validates vel applies; e.g., should show pos change ~40px by 500ms.)
-        console.log(`Proj spawned at (${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=(${proj.body.velocity.x.toFixed(0)},${proj.body.velocity.y.toFixed(0)})`);
+        // proj.body!.velocity (though ! not needed post-set, for consistency)
+        console.log(`Proj spawned at (${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=(${proj.body!.velocity.x.toFixed(0)},${proj.body!.velocity.y.toFixed(0)})`);
         this.time.delayedCall(100, () => {
             if (proj.active) {
-                console.log(`Proj at 100ms: pos=(${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=${proj.body.velocity.x.toFixed(0)} (should be moving)`);
+                console.log(`Proj at 100ms: pos=(${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=${proj.body!.velocity.x.toFixed(0)} (should be moving)`);
             }
         });
         this.time.delayedCall(500, () => {
             if (proj.active) {
-                console.log(`Proj at 500ms: pos=(${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=${proj.body.velocity.x.toFixed(0)} (should have traveled ~40px)`);
+                console.log(`Proj at 500ms: pos=(${proj.x.toFixed(0)},${proj.y.toFixed(0)}), vel=${proj.body!.velocity.x.toFixed(0)} (should have traveled ~40px)`);
             }
         });
 
@@ -659,7 +666,8 @@ export default class GameScene extends Phaser.Scene {
     // Flash effect on hit; only kill when HP depleted. Follows Goblin death
     // pattern but generalized.
     // -----------------------------------------------------------------------
-    _damageEnemy(enemy) {
+    // Param typed as GameEnemy for HP/type safety.
+    _damageEnemy(enemy: GameEnemy): void {
         if (enemy.isDying) return;
 
         // Decrement type-specific HP (default 1 for backward compat)
@@ -694,7 +702,9 @@ export default class GameScene extends Phaser.Scene {
     //   - Wizrobe projectile (_onPlayerHitByProj)
     // Iframes prevent spam; extracted from original for reuse.
     // -----------------------------------------------------------------------
-    _damagePlayer(source) {
+    // source: PositionedObject (structural {x,y}; compatible with all physics objs
+    // passed from cbs, avoids Phaser union/body-null quirks, no implicit any).
+    _damagePlayer(source: PositionedObject): void {
         // source: enemy sprite or projectile sprite (for angle calc)
         const now = this.time.now;
         if (now - this.lastHitTime < IFRAMES_DUR) return;
@@ -702,13 +712,10 @@ export default class GameScene extends Phaser.Scene {
         this.lastHitTime = now;
         this.playerHP -= ENEMY_DMG;
 
-        // Knockback direction away from source
-        const angle = Phaser.Math.Angle.Between(
-            source.x, source.y, this.player.x, this.player.y,
-        );
-        this.player.setVelocity(
-            Math.cos(angle) * 300, Math.sin(angle) * 300
-        );
+        // Use extracted util for pure knockback velocity calc.
+        // (Math/angle extracted to gameSceneUtils.ts for testability.)
+        const { vx, vy } = calcKnockbackVelocity(source, this.player, 300);
+        this.player.setVelocity(vx, vy);
 
         this.cameras.main.shake(100, 0.01);
         this.player.setTint(0xff0000);
@@ -723,27 +730,40 @@ export default class GameScene extends Phaser.Scene {
     // -----------------------------------------------------------------------
     // _onPlayerHit — player touches enemy (melee damage from Goblin/Lynel/etc)
     // -----------------------------------------------------------------------
-    _onPlayerHit(player, enemy) {
-        if (enemy.isDying) return;
+    // Params use PhysicsCallbackObject (exact union from Phaser's ArcadePhysicsCallback)
+    // to ensure fn assignable to overlap sig (fixes type mismatch error).
+    // Then assert enemy to GameEnemy (intersection allows; inherits custom props
+    // safely, no 'any'). Player unused.
+    _onPlayerHit(player: PhysicsCallbackObject, enemy: PhysicsCallbackObject): void {
+        // Cast for custom prop access (isDying); union doesn't guarantee.
+        const enemyTyped = enemy as GameEnemy;
+        if (enemyTyped.isDying) return;
         // Delegate to shared damage func
-        this._damagePlayer(enemy);
+        // Cast enemy (known to be GameEnemy from group).
+        this._damagePlayer(enemyTyped);
     }
 
     // -----------------------------------------------------------------------
     // _onPlayerHitByProj — player hit by Wizrobe's slow projectile
     // Destroys the proj immediately (unlike persistent enemy bodies)
     // -----------------------------------------------------------------------
-    _onPlayerHitByProj(player, proj) {
+    // Similar: union param for cb compat; cast proj to GameEnemy? but treat as
+    // positioned sprite for damage (proj is Sprite).
+    // proj.destroy ok on union.
+    _onPlayerHitByProj(player: PhysicsCallbackObject, proj: PhysicsCallbackObject): void {
         // Apply damage then cleanup proj
-        this._damagePlayer(proj);
-        proj.destroy();
+        // Cast for PositionedObject structural match.
+        this._damagePlayer(proj as PositionedObject);
+        // Assert destroy (union has it for GameObjects).
+        (proj as Phaser.Physics.Arcade.Sprite).destroy();
     }
 
     // =======================================================================
     // UI
     // =======================================================================
 
-    _createUI() {
+    // UI methods: no params; typed void for completeness (no implicit any).
+    _createUI(): void {
         this.heartSprites = [];
         const numHearts = Math.ceil(MAX_HP / HEART_HP);
         for (let i = 0; i < numHearts; i++) {
@@ -774,7 +794,7 @@ export default class GameScene extends Phaser.Scene {
         }).setScrollFactor(0).setDepth(201).setOrigin(0.5).setVisible(false);
     }
 
-    _updateUI() {
+    _updateUI(): void {
         const numHearts = Math.ceil(MAX_HP / HEART_HP);
         for (let i = 0; i < numHearts; i++) {
             this.heartSprites[i].setTexture(
@@ -797,7 +817,7 @@ export default class GameScene extends Phaser.Scene {
     // WIN / LOSE
     // =======================================================================
 
-    _showVictory() {
+    _showVictory(): void {
         this.victory = true;
         this.player.setVelocity(0, 0);
 
@@ -823,7 +843,7 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    _showGameOver() {
+    _showGameOver(): void {
         this.gameOver = true;
         this.player.setVelocity(0, 0);
         this.player.setTint(0x666666);
@@ -837,17 +857,18 @@ export default class GameScene extends Phaser.Scene {
     // TOUCH CONTROLS
     // =======================================================================
 
-    _setupTouchControls() {
+    // Pointer events: typed Phaser.Input.Pointer (x,y,isDown,downX etc.; no implicit any).
+    _setupTouchControls(): void {
         this.touchDir    = { x: 0, y: 0 };
         this.touchAttack = false;
 
-        this.input.on('pointerdown', (pointer) => {
+        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
             if (pointer.x > this.scale.width * 0.7) {
                 this.touchAttack = true;
             }
         });
 
-        this.input.on('pointermove', (pointer) => {
+        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
             if (pointer.isDown && pointer.x <= this.scale.width * 0.7) {
                 const dx   = pointer.x - pointer.downX;
                 const dy   = pointer.y - pointer.downY;

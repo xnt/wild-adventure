@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+      "target": "ESNext",
+      "module": "ESNext",
+      // "bundler" for Vite's ESM/TS resolution (modern replacement for Node)
+      "moduleResolution": "bundler",
+      "strict": true,
+      "skipLibCheck": true,
+      "composite": true,
+      // No noEmit; root tsconfig controls emit
+      "lib": ["ESNext"]
+    },
+    "include": ["vite.config.ts"]
+  }

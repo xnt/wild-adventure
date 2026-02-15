@@ -40,8 +40,7 @@ There is no state management beyond Phaser scenes; no Redux, no global store. Sc
 
 ## Testing changes
 
-- After editing: run `npm run dev` and reload the browser. For production build, run `npm run build` and optionally `npm run preview`.
-- No automated tests or CI are set up; manual play-test is the primary check.
+- npm run test
 
 ## README
 

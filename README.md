@@ -36,22 +36,43 @@ npm run preview    # serves dist/ at http://localhost:4173
 
 Both the dev and preview servers bind to `0.0.0.0`, so they're accessible from other machines on the network (useful inside containers or VMs).
 
+## Development, Testing & Coverage
+
+The project is now fully TypeScript (`*.ts` sources with `tsconfig.json`; Vite transpiles seamlessly). To protect against regressions:
+
+```bash
+npm run type-check  # tsc --noEmit
+npm test            # vitest watch mode
+npm run test:run    # CI-style run
+npm run test:coverage  # Generates V8 coverage report (console + HTML/JSON in ./coverage/; ~42% baseline, utils/map high; excludes tests/mocks)
+npm run test:ui     # Vitest UI dashboard
+```
+
+- **File convention**: `<target>.test.ts` (e.g., `gameSceneUtils.test.ts` tests `gameSceneUtils.ts`).
+- **Refactors**: Extracted non-UI logic to `gameSceneUtils.ts` (effects/AI/math for readability/tests) + `types.ts` (shared Phaser types); GameScene thinned for maintainability.
+- **Mocks**: Vitest/jsdom + setup for Phaser (enables unit tests on UI-heavy code).
+- **Coverage**: Use report to prioritize (e.g., GameScene next).
+
 ## Project Structure
 
 ```
 wild-adventure/
 ├── index.html              Vite entry point
 ├── package.json
-├── vite.config.js
+├── vite.config.ts
+├── tsconfig.json           TypeScript config
+├── tsconfig.node.json      For Vite config
 ├── public/                 Static assets (drop PNGs here)
 └── src/
-    ├── main.js             Phaser boot & game config
-    ├── constants.js        Tunable gameplay constants & sprite frame map
-    ├── map.js              Procedural 50×50 tilemap generator
-    ├── fallbacks.js        Auto-generated textures when PNGs are missing
+    ├── main.ts             Phaser boot & game config
+    ├── constants.ts        Tunable gameplay constants & sprite frame map
+    ├── map.ts              Procedural 50×50 tilemap generator
+    ├── fallbacks.ts        Auto-generated textures when PNGs are missing
+    ├── gameSceneUtils.ts   Extracted non-UI utils (effects/AI/math)
+    ├── types.ts            Shared TS types (GameEnemy, etc.)
     ├── style.css           Minimal fullscreen styles
     └── scenes/
-        └── GameScene.js    Main game scene (player, enemies, combat, UI)
+        └── GameScene.ts    Main game scene (player, enemies, combat, UI)
 ```
 
 ## Assets
@@ -60,7 +81,7 @@ The game auto-generates coloured placeholder textures at runtime, so **no image 
 
 | File | Size | Description |
 |---|---|---|
-| `player_sheet.png` | 512×512 | Spritesheet — 32×32 frames, 16 columns (see `constants.js` for the frame map) |
+| `player_sheet.png` | 512×512 | Spritesheet — 32×32 frames, 16 columns (see `constants.ts` for the frame map) |
 | `grass.png` | 32×32 | Grass tile |
 | `tree.png` | 32×32 | Tree tile (impassable) |
 | `rock.png` | 32×32 | Rock tile (impassable) |

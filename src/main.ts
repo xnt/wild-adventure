@@ -10,7 +10,8 @@
 import Phaser from 'phaser';
 import GameScene from './scenes/GameScene.js';
 
-const config = {
+// Typed Phaser game config for better safety (leverages Phaser's built-in types).
+const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     width: 1024,
     height: 768,
@@ -21,7 +22,8 @@ const config = {
     physics: {
         default: 'arcade',
         arcade: {
-            gravity: { y: 0 },
+            // Vector2Like requires x/y; y=0 for no gravity, x=0 explicit.
+            gravity: { x: 0, y: 0 },
             debug: false,
         },
     },

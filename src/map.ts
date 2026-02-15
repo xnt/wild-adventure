@@ -11,7 +11,9 @@ import { MAP_COLS, MAP_ROWS } from './constants.js';
  * centre and a tree border wall.  A clear 5×5 area is left around the
  * player spawn point.
  */
-export function generateMap(cols = MAP_COLS, rows = MAP_ROWS) {
+// Added TypeScript types here (and to mapData below) to validate transpilation,
+// type safety for tile values (0=grass,1=tree,2=rock), and integration with Vite.
+export function generateMap(cols: number = MAP_COLS, rows: number = MAP_ROWS): number[][] {
     const map = [];
 
     for (let r = 0; r < rows; r++) {
@@ -54,4 +56,4 @@ export function generateMap(cols = MAP_COLS, rows = MAP_ROWS) {
 }
 
 /** Singleton map data — generated once, reused across restarts. */
-export const mapData = generateMap();
+export const mapData: number[][] = generateMap();

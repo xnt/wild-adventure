@@ -20,10 +20,8 @@ import Phaser from 'phaser';
 /**
  * Generate any missing textures using Phaser graphics.
  * Safe to call on every scene restart — skips textures that already exist.
- *
- * @param {Phaser.Scene} scene
  */
-export function generateFallbacks(scene) {
+export function generateFallbacks(scene: Phaser.Scene): void {
     const g = scene.add.graphics();
 
     // ---- Grass (green tile with darker spots) ----
@@ -184,14 +182,28 @@ export function generateFallbacks(scene) {
 // Player fallback spritesheet (canvas-drawn, 512×512, 16-col grid)
 // ---------------------------------------------------------------------------
 
-function generatePlayerFallback(scene) {
+// Exported for unit testing (internal helper; typed for canvas/Phaser texture creation).
+// Called by generateFallbacks; exposed to validate attack sword render etc.
+// (Keep private-style name; re-evaluate in refactor.)
+export function generatePlayerFallback(scene: Phaser.Scene): void {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
-    const ctx = canvas.getContext('2d');
+    // getContext returns CanvasRenderingContext2D | null; assert non-null (always succeeds for '2d').
+    // Avoids implicit any/null errors downstream.
+    const ctx = canvas.getContext('2d')!;
 
     // dir: 0 = N, 1 = S, 2 = E, 3 = W
-    const drawChar = (col, row, dir, isWalk, walkFrame, isAttack) => {
+    // Explicit param types to eliminate implicit any.
+    // (col/row: grid pos; dir: cardinal; flags for anim state; walkFrame: 0/1 for alt pose)
+    const drawChar = (
+        col: number,
+        row: number,
+        dir: 0 | 1 | 2 | 3,
+        isWalk: boolean,
+        walkFrame: number,
+        isAttack: boolean,
+    ): void => {
         const x = col * 32;
         const y = row * 32;
 
@@ -271,7 +283,11 @@ function generatePlayerFallback(scene) {
     // Row 4: Attack N(64)
     drawChar(0, 4, 0, false, 0, true);
 
-    scene.textures.addSpriteSheet('player', canvas, {
+    // Phaser's TextureManager.addSpriteSheet TS def expects string|HTMLImageElement|Texture for source,
+    // but accepts HTMLCanvasElement at runtime for dynamic sheets (common pattern in Phaser examples).
+    // Cast via unknown (safe, no implicit/any) to satisfy without runtime change.
+    // Alternative (graphics-only player sheet) would require more refactor.
+    scene.textures.addSpriteSheet('player', canvas as unknown as HTMLImageElement, {
         frameWidth: 32,
         frameHeight: 32,
     });

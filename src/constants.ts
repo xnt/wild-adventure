@@ -2,9 +2,9 @@
 // Game constants — tweak these to tune gameplay
 // ---------------------------------------------------------------------------
 
-export const TILE_SIZE    = 32;
-export const MAP_COLS     = 50;
-export const MAP_ROWS     = 50;
+export const TILE_SIZE: number    = 32;
+export const MAP_COLS: number     = 50;
+export const MAP_ROWS: number     = 50;
 
 export const PLAYER_SPEED = 160;
 export const ENEMY_SPEED  = 50;
@@ -24,7 +24,18 @@ export const IFRAMES_DUR  = 800;   // invincibility after hit (ms)
 // Enemy type configurations — Goblin (classic), Wizrobe (shoots slow projectiles),
 // Lynel (slow but 3-hit kill). Loosely inspired by the usual suspect franchise;
 // all rendered via Phaser graphics (no external sprite PNGs required).
-export const ENEMY_CONFIGS = {
+// Exported for reuse in GameScene.ts and other files; provides safety for enemy variety config.
+export type EnemyConfig = {
+    hp: number;
+    speedMult: number;
+    shoots: boolean;
+    texture: string;
+    projSpeed?: number;
+    shootCd?: number;
+    scale?: number;
+};
+
+export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
     goblin: {
         hp: 1,
         speedMult: 1.0,
@@ -53,10 +64,11 @@ export const PROJ_LIFETIME = 4000;  // ms before projectile auto-destroys
 
 // Frame index mapping for 512×512 player spritesheet (16 cols of 32px).
 // Phaser frame = row * 16 + col.
+// Added `as const` for stricter typing in consuming code (e.g., frame keys).
 export const FRAMES = {
     IDLE_N: 0,   IDLE_S: 1,   IDLE_E: 2,   ATK_E: 3,
     WALK_S1: 16, WALK_S2: 17, WALK_E1: 18, WALK_E2: 19,
     IDLE_W: 32,  ATK_S: 33,   ATK_E2: 34,  ATK_W: 35,
     WALK_N1: 48, WALK_N2: 49, WALK_W1: 50, WALK_W2: 51,
     ATK_N: 64,
-};
+} as const;
