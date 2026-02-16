@@ -1,4 +1,4 @@
-import { MAP_COLS, MAP_ROWS } from './constants.js';
+import { MAP_COLS, MAP_ROWS, TILE_SIZE, NUM_CHESTS } from './constants.js';
 
 // ---------------------------------------------------------------------------
 // Procedural Map Generation (50×50)
@@ -57,3 +57,61 @@ export const generateMap = (cols: number = MAP_COLS, rows: number = MAP_ROWS): n
 
 /** Singleton map data — generated once, reused across restarts. */
 export const mapData: number[][] = generateMap();
+
+// ---------------------------------------------------------------------------
+// Chest position generation
+// ---------------------------------------------------------------------------
+
+/** World-space position for a chest. */
+export type ChestPosition = { x: number; y: number };
+
+/**
+ * Pick `count` random grass-tile positions for chests, spread across the map.
+ * Avoids the player spawn area (centre 5×5) and border tiles.
+ * Positions are well-separated (min ~6 tiles apart) so chests feel scattered.
+ *
+ * Uses the provided mapData so chest positions are consistent with the
+ * generated terrain.  Pure function (injectable rng for tests).
+ */
+export const generateChestPositions = (
+    map: number[][],
+    count: number = NUM_CHESTS,
+    cols: number = MAP_COLS,
+    rows: number = MAP_ROWS,
+    rng: () => number = Math.random,
+): ChestPosition[] => {
+    const positions: ChestPosition[] = [];
+    const cx = Math.floor(cols / 2);
+    const cy = Math.floor(rows / 2);
+    const minSep = 6 * TILE_SIZE; // minimum separation between chests (px)
+
+    let attempts = 0;
+    while (positions.length < count && attempts < 1000) {
+        attempts++;
+        // Pick random interior tile (avoid border)
+        const c = Math.floor(rng() * (cols - 4)) + 2;
+        const r = Math.floor(rng() * (rows - 4)) + 2;
+
+        // Must be grass
+        if (map[r][c] !== 0) continue;
+
+        // Avoid spawn area
+        if (Math.abs(c - cx) < 4 && Math.abs(r - cy) < 4) continue;
+
+        const wx = c * TILE_SIZE + TILE_SIZE / 2;
+        const wy = r * TILE_SIZE + TILE_SIZE / 2;
+
+        // Ensure separation from existing chests
+        const tooClose = positions.some(
+            (p) => Math.hypot(p.x - wx, p.y - wy) < minSep,
+        );
+        if (tooClose) continue;
+
+        positions.push({ x: wx, y: wy });
+    }
+
+    return positions;
+};
+
+/** Singleton chest positions — generated once alongside mapData. */
+export const chestPositions: ChestPosition[] = generateChestPositions(mapData);

@@ -7,8 +7,11 @@ import {
     IFRAMES_DUR, FRAMES as F,
     // Enemy variety
     ENEMY_CONFIGS, PROJ_LIFETIME,
+    // Chest / triforce
+    NUM_CHESTS, CHEST_CONTENTS, CHEST_INTERACT_RANGE,
+    TRIFORCE_BONUS_HP,
 } from '../constants';
-import { mapData } from '../map';
+import { mapData, chestPositions } from '../map';
 import { generateFallbacks } from '../fallbacks';
 // Shared types (centralized in types.ts for DRY; no circular imports).
 // GameEnemy uses intersection for Phaser compat; PhysicsCallbackObject union
@@ -16,6 +19,7 @@ import { generateFallbacks } from '../fallbacks';
 import type {
     TouchDir,
     GameEnemy,
+    GameChest,
     PhysicsCallbackObject,
     PositionedObject,
     EnemyConfig,  // Re-exported from constants
@@ -86,6 +90,12 @@ export default class GameScene extends Phaser.Scene {
     touchDir: TouchDir = { x: 0, y: 0 };
     touchAttack!: boolean;
 
+    // Chest / triforce state
+    chests: GameChest[] = [];
+    triforcePieces!: number;          // count of collected pieces (0-3)
+    triforceHudSprites: Phaser.GameObjects.Image[] = [];
+    chestFlashText!: Phaser.GameObjects.Text;  // brief label when opening a chest
+
     constructor() {
         super({ key: 'GameScene' });
     }
@@ -102,6 +112,7 @@ export default class GameScene extends Phaser.Scene {
         this.enemiesKilled  = 0;
         this.gameOver       = false;
         this.victory        = false;
+        this.triforcePieces = 0;
     }
 
     // -----------------------------------------------------------------------
@@ -128,6 +139,13 @@ export default class GameScene extends Phaser.Scene {
 
         this.load.image('heart_full',  'heart_full.png');
         this.load.image('heart_empty', 'heart_empty.png');
+
+        // Chest / triforce assets (fallbacks generated if PNGs missing)
+        this.load.image('chest_closed',      'chest_closed.png');
+        this.load.image('chest_opened',      'chest_opened.png');
+        this.load.image('triforce_piece',    'triforce_piece.png');
+        this.load.image('triforce_hud',      'triforce_hud.png');
+        this.load.image('triforce_hud_empty', 'triforce_hud_empty.png');
     }
 
     // -----------------------------------------------------------------------
@@ -139,6 +157,7 @@ export default class GameScene extends Phaser.Scene {
         this._buildTilemap();
         this._createPlayer();
         this._createEnemies();
+        this._createChests();
 
         this.swordGroup = this.physics.add.group();
 
@@ -247,6 +266,7 @@ export default class GameScene extends Phaser.Scene {
         this._handlePlayerMovement(time);
         this._handleAttack(time);
         this._updateEnemies(time);
+        this._checkChests();
         this._updateUI();
     }
 
@@ -462,7 +482,9 @@ export default class GameScene extends Phaser.Scene {
             this.player,
             this.heartDrops,
             (_p: PhysicsCallbackObject, heart: PhysicsCallbackObject) => {
-                this.playerHP = Math.min(MAX_HP, this.playerHP + HEART_HP);
+                // Effective max HP accounts for triforce bonus
+                const effectiveMax = this.triforcePieces >= NUM_CHESTS ? TRIFORCE_BONUS_HP : MAX_HP;
+                this.playerHP = Math.min(effectiveMax, this.playerHP + HEART_HP);
                 heart.destroy();
             },
             undefined,
@@ -693,6 +715,175 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // =======================================================================
+    // CHESTS / TRIFORCE
+    // =======================================================================
+
+    /**
+     * Place closed chests at the pre-generated positions.
+     * Each chest carries a `content` descriptor (currently triforce pieces)
+     * that is evaluated on open — making it trivial to add new loot types.
+     */
+    _createChests(): void {
+        this.chests = [];
+        chestPositions.forEach((pos, i) => {
+            const chest = this.physics.add.sprite(pos.x, pos.y, 'chest_closed') as GameChest;
+            chest.setDepth(3).setImmovable(true);
+            chest.opened = false;
+            chest.chestIndex = i;
+            chest.content = CHEST_CONTENTS[i];
+            // Subtle float animation so the chest draws attention
+            this.tweens.add({
+                targets: chest,
+                y: pos.y - 4,
+                duration: 1200,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut',
+            });
+            this.chests.push(chest);
+        });
+    }
+
+    /**
+     * Called every frame: if the player is close enough to an unopened chest,
+     * open it, award the content, and play a brief feedback animation.
+     */
+    _checkChests(): void {
+        for (const chest of this.chests) {
+            if (chest.opened) continue;
+
+            const dist = Phaser.Math.Distance.Between(
+                this.player.x, this.player.y, chest.x, chest.y,
+            );
+            if (dist > CHEST_INTERACT_RANGE) continue;
+
+            // Open the chest
+            chest.opened = true;
+            chest.setTexture('chest_opened');
+
+            // Process content — extensible via switch on content.type
+            this._processChestContent(chest);
+        }
+    }
+
+    /**
+     * Handle the content of an opened chest.
+     * Switch on `content.type` so adding new loot categories is a one-case change.
+     */
+    _processChestContent(chest: GameChest): void {
+        const { content } = chest;
+
+        switch (content.type) {
+            case 'triforce_piece':
+                this._collectTriforcePiece(chest);
+                break;
+            // future: case 'potion': / case 'key': / etc.
+        }
+    }
+
+    /**
+     * Award a triforce piece: spawn a floating triangle that flies to the
+     * player, increment counter, flash label, and check for full triforce.
+     */
+    _collectTriforcePiece(chest: GameChest): void {
+        this.triforcePieces++;
+
+        // Spawn a floating triforce piece that tweens toward the player
+        const piece = this.add.image(chest.x, chest.y - 16, 'triforce_piece')
+            .setDepth(10).setScale(1.5);
+
+        this.tweens.add({
+            targets: piece,
+            y: piece.y - 32,
+            alpha: 0,
+            scaleX: 2.5,
+            scaleY: 2.5,
+            duration: 800,
+            ease: 'Back.easeOut',
+            onComplete: () => piece.destroy(),
+        });
+
+        // Flash label
+        this._showChestFlash(chest.content.label);
+
+        // Camera feedback
+        this.cameras.main.flash(300, 255, 215, 0, false); // gold flash
+
+        // Check full triforce
+        if (this.triforcePieces >= NUM_CHESTS) {
+            this._onTriforceComplete();
+        }
+    }
+
+    /**
+     * Show a brief text label near the HUD when a chest is opened.
+     */
+    _showChestFlash(label: string): void {
+        if (this.chestFlashText) {
+            this.chestFlashText.destroy();
+        }
+        this.chestFlashText = this.add.text(512, 140, label, {
+            fontFamily: 'monospace',
+            fontSize: '22px',
+            color: '#ffd700',
+            stroke: '#000000',
+            strokeThickness: 4,
+            align: 'center',
+        }).setScrollFactor(0).setDepth(201).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: this.chestFlashText,
+            y: 100,
+            alpha: 0,
+            duration: 1500,
+            ease: 'Power2',
+            onComplete: () => {
+                if (this.chestFlashText) {
+                    this.chestFlashText.destroy();
+                }
+            },
+        });
+    }
+
+    /**
+     * Called when all 3 triforce pieces are collected.
+     * Upgrades MAX_HP to 8 hearts and fully heals the player.
+     */
+    _onTriforceComplete(): void {
+        // Upgrade HP to 8 hearts
+        this.playerHP = TRIFORCE_BONUS_HP;
+
+        // Rebuild heart HUD to show 8 hearts
+        this._rebuildHeartUI(TRIFORCE_BONUS_HP);
+
+        // Big camera + screen flash
+        this.cameras.main.flash(600, 255, 255, 100, false);
+        this.cameras.main.shake(200, 0.015);
+
+        // Show "Triforce Complete!" flash
+        this._showChestFlash('✦ Triforce Complete! HP upgraded! ✦');
+
+        console.log('Triforce complete! Player HP upgraded to', TRIFORCE_BONUS_HP);
+    }
+
+    /**
+     * Rebuild the heart HUD sprites for a new max HP value.
+     * Used when the triforce bonus changes the heart count.
+     */
+    _rebuildHeartUI(newMaxHp: number): void {
+        // Destroy old hearts
+        this.heartSprites.forEach((h) => h.destroy());
+        this.heartSprites = [];
+
+        const numHearts = Math.ceil(newMaxHp / HEART_HP);
+        for (let i = 0; i < numHearts; i++) {
+            const heart = this.add.image(20 + i * 28, 20, 'heart_full')
+                .setScrollFactor(0).setDepth(100).setScale(1.5);
+            this.heartSprites.push(heart);
+        }
+    }
+
+    // =======================================================================
     // UI
     // =======================================================================
 
@@ -710,6 +901,15 @@ export default class GameScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '16px',
             color: '#ffffff', stroke: '#000000', strokeThickness: 3,
         }).setScrollFactor(0).setDepth(100);
+
+        // Triforce piece indicators (top-right area of HUD)
+        this.triforceHudSprites = [];
+        for (let i = 0; i < NUM_CHESTS; i++) {
+            const tx = this.scale.width - 80 + i * 24;
+            const tri = this.add.image(tx, 20, 'triforce_hud_empty')
+                .setScrollFactor(0).setDepth(100).setScale(1.3);
+            this.triforceHudSprites.push(tri);
+        }
 
         // Overlay UI elements (hearts, enemies count, game over/victory)
         // (Debug text removed per request; console logs remain for dev if needed.)
@@ -729,11 +929,13 @@ export default class GameScene extends Phaser.Scene {
     }
 
     _updateUI(): void {
-        const numHearts = Math.ceil(MAX_HP / HEART_HP);
+        // Current effective max HP (upgraded after triforce)
+        const effectiveMaxHp = this.triforcePieces >= NUM_CHESTS ? TRIFORCE_BONUS_HP : MAX_HP;
+        const numHearts = this.heartSprites.length;
         for (let i = 0; i < numHearts; i++) {
             // Delegate pure texture key calc (HP state).
             this.heartSprites[i].setTexture(
-                getHeartTexture(this.playerHP, i, MAX_HP, HEART_HP),
+                getHeartTexture(this.playerHP, i, effectiveMaxHp, HEART_HP),
             );
         }
 
@@ -741,8 +943,12 @@ export default class GameScene extends Phaser.Scene {
         const remaining = getRemainingEnemies(this.enemiesKilled, NUM_ENEMIES);
         this.enemyText.setText(`Enemies: ${remaining}/${NUM_ENEMIES}`);
 
-        // (Debug logging for Lynel/Wizrobe removed from screen per request;
-        // console logs remain minimal for dev troubleshooting if needed.)
+        // Triforce HUD — light up collected pieces
+        for (let i = 0; i < this.triforceHudSprites.length; i++) {
+            this.triforceHudSprites[i].setTexture(
+                i < this.triforcePieces ? 'triforce_hud' : 'triforce_hud_empty',
+            );
+        }
 
         if (remaining <= 0 && !this.victory) {
             this._showVictory();

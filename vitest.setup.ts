@@ -59,8 +59,11 @@ vi.mock('phaser', () => ({
           sprite: vi.fn().mockReturnValue({
           setDepth: vi.fn().mockReturnThis(),
           setCollideWorldBounds: vi.fn().mockReturnThis(),
+          setImmovable: vi.fn().mockReturnThis(),
+          setTexture: vi.fn().mockReturnThis(),
           body: { setSize: vi.fn().mockReturnThis(), setOffset: vi.fn().mockReturnThis(), enable: true, setAllowGravity: vi.fn(), setImmovable: vi.fn(), velocity: { x: 0, y: 0 } },
           setVelocity: vi.fn(), setTint: vi.fn(), clearTint: vi.fn(), setScale: vi.fn().mockReturnThis(), setRotation: vi.fn(), play: vi.fn(), setAlpha: vi.fn(), destroy: vi.fn(),
+          x: 0, y: 0, active: true,
         }),
           group: vi.fn().mockReturnValue({ add: vi.fn(), getChildren: vi.fn().mockReturnValue([]) }),
           staticGroup: vi.fn().mockReturnValue({
@@ -87,6 +90,7 @@ vi.mock('phaser', () => ({
           setBounds: vi.fn(),
           startFollow: vi.fn(),
           shake: vi.fn(),
+          flash: vi.fn(),
         },
       };
       anims = {
@@ -99,6 +103,7 @@ vi.mock('phaser', () => ({
       load = { on: vi.fn(), spritesheet: vi.fn(), image: vi.fn() };
       textures = { exists: vi.fn().mockReturnValue(false), addSpriteSheet: vi.fn() };
       scene = { restart: vi.fn(), launch: vi.fn() };
+      scale = { width: 1024, height: 768 };
     },
     // Math/Utils for utils calcs (Between, Angle, Random, Vector2).
     // Stubbed minimally for tests (returns numbers/vectors).

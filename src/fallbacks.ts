@@ -175,6 +175,73 @@ export const generateFallbacks = (scene: Phaser.Scene): void => {
         g.generateTexture('heart_drop', 16, 16);
     }
 
+    // ---- Chest closed (brown box with gold latch) ----
+    if (!scene.textures.exists('chest_closed')) {
+        g.clear();
+        // Body
+        g.fillStyle(0x8b5e3c);
+        g.fillRoundedRect(2, 8, 28, 20, 3);
+        // Lid (darker)
+        g.fillStyle(0x6b3e1c);
+        g.fillRoundedRect(2, 4, 28, 12, 3);
+        // Gold latch
+        g.fillStyle(0xffd700);
+        g.fillRect(13, 10, 6, 6);
+        // Highlight
+        g.fillStyle(0xa87848);
+        g.fillRect(4, 6, 24, 2);
+        g.generateTexture('chest_closed', 32, 32);
+    }
+
+    // ---- Chest opened (brown box, lid up, empty inside) ----
+    if (!scene.textures.exists('chest_opened')) {
+        g.clear();
+        // Body
+        g.fillStyle(0x8b5e3c);
+        g.fillRoundedRect(2, 12, 28, 18, 3);
+        // Open interior (dark)
+        g.fillStyle(0x3a2010);
+        g.fillRect(5, 14, 22, 12);
+        // Lid flipped back
+        g.fillStyle(0x6b3e1c);
+        g.fillRoundedRect(2, 2, 28, 10, 3);
+        // Gold latch on lid
+        g.fillStyle(0xffd700);
+        g.fillRect(13, 4, 6, 4);
+        g.generateTexture('chest_opened', 32, 32);
+    }
+
+    // ---- Triforce piece (golden triangle, Zelda-style) ----
+    if (!scene.textures.exists('triforce_piece')) {
+        g.clear();
+        // Glow
+        g.fillStyle(0xffee88);
+        g.fillTriangle(8, 2, 0, 14, 16, 14);
+        // Inner gold
+        g.fillStyle(0xffd700);
+        g.fillTriangle(8, 4, 2, 13, 14, 13);
+        // Highlight
+        g.fillStyle(0xffff99);
+        g.fillTriangle(8, 6, 5, 11, 11, 11);
+        g.generateTexture('triforce_piece', 16, 16);
+    }
+
+    // ---- Triforce HUD icon (small, for collected-piece indicator) ----
+    if (!scene.textures.exists('triforce_hud')) {
+        g.clear();
+        g.fillStyle(0xffd700);
+        g.fillTriangle(8, 1, 1, 14, 15, 14);
+        g.generateTexture('triforce_hud', 16, 16);
+    }
+
+    // ---- Triforce HUD empty (dimmed, uncollected indicator) ----
+    if (!scene.textures.exists('triforce_hud_empty')) {
+        g.clear();
+        g.fillStyle(0x555544);
+        g.fillTriangle(8, 1, 1, 14, 15, 14);
+        g.generateTexture('triforce_hud_empty', 16, 16);
+    }
+
     g.destroy();
 };
 
