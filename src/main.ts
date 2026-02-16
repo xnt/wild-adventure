@@ -8,6 +8,7 @@
 // ===========================================================================
 
 import Phaser from 'phaser';
+import StartScene from './scenes/StartScene.js';
 import GameScene from './scenes/GameScene.js';
 
 // Typed Phaser game config for better safety (leverages Phaser's built-in types).
@@ -31,7 +32,7 @@ const config: Phaser.Types.Core.GameConfig = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [GameScene],
+    scene: [StartScene, GameScene],
 };
 
 new Phaser.Game(config);
