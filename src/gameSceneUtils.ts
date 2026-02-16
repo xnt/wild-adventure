@@ -113,8 +113,8 @@ export const updateEnemy = (
     enemy: GameEnemy,
     player: PositionedObject,
     time: number,
-): void => {
-    if (enemy.isDying) return;
+): boolean => {
+    if (enemy.isDying) return false;
 
     const dist = Phaser.Math.Distance.Between(
         enemy.x, enemy.y, player.x, player.y,
@@ -163,16 +163,16 @@ export const updateEnemy = (
         }
     }
 
-    // Wizrobe-specific: shoot slow projectile at player if nearby
-    // (uses _enemyShoot; rate from config ~2.5s, slow proj)
+    // Wizrobe-specific: shoot slow projectile at player if nearby.
+    // Returns true when the enemy should fire (scene calls _enemyShoot).
+    let shouldShoot = false;
     if (enemy.shoots && dist < CHASE_RANGE * 1.5) {
         // Init timer if missing (defensive)
         if (!enemy.lastShotTime) enemy.lastShotTime = 0;
         const cd = enemy.shootCd || 2500;
         if (time - enemy.lastShotTime > cd) {
-            // Note: _enemyShoot call stays in scene (needs this.time etc.); shoot check here.
-            // For full extract, could return shoot flag.
-            enemy.lastShotTime = time;  // Update here; actual shoot delegated.
+            enemy.lastShotTime = time;
+            shouldShoot = true;
         }
     }
 
@@ -181,21 +181,27 @@ export const updateEnemy = (
     // (prevents scale/body mismatch that could affect sword overlaps)
     const baseScale = (enemy.type === 'lynel') ? 1.2 : 1;
     enemy.setScale(baseScale + Math.sin(time * 0.005 + enemy.x) * 0.05);
+
+    return shouldShoot;
 };
 
 /**
  * Updates all enemies (delegates to updateEnemy).
  * Extracted from _updateEnemies for batch/testability.
+ * Returns array of enemies that should shoot this frame (scene calls _enemyShoot).
  */
 export const updateEnemies = (
     enemies: Phaser.Physics.Arcade.Group,
     player: PositionedObject,
     time: number,
-): void => {
+): GameEnemy[] => {
+    const shooters: GameEnemy[] = [];
     // Cast children (as in original) for GameEnemy.
     (enemies.getChildren() as GameEnemy[]).forEach((enemy) => {
-        updateEnemy(enemy, player, time);
+        const shouldShoot = updateEnemy(enemy, player, time);
+        if (shouldShoot) shooters.push(enemy);
     });
+    return shooters;
 };
 
 /**

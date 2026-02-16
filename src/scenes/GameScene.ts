@@ -496,8 +496,11 @@ export default class GameScene extends Phaser.Scene {
     // (User-identified chunk: chase/patrol/shoot/bob math extracted for readability/tests;
     // scene-specific shoot delegated to _enemyShoot.)
     _updateEnemies(time: number): void {
-        // Delegate to pure util (enemies group, player, time).
-        updateEnemies(this.enemies, this.player, time);
+        // Delegate to pure util; returns enemies that should fire this frame.
+        const shooters = updateEnemies(this.enemies, this.player, time);
+        for (const enemy of shooters) {
+            this._enemyShoot(enemy);
+        }
     }
 
     // enemy: GameEnemy (via intersection; used in damage/kill flows).
