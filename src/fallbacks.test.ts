@@ -20,6 +20,7 @@ describe('fallbacks.ts', () => {
           fillCircle: vi.fn(),
           fillTriangle: vi.fn(),
           fillRoundedRect: vi.fn(),
+          fillEllipse: vi.fn(),
           generateTexture: vi.fn(),
           destroy: vi.fn(),
         }),

@@ -11,7 +11,7 @@ import {
     NUM_CHESTS, CHEST_CONTENTS, CHEST_INTERACT_RANGE,
     TRIFORCE_BONUS_HP,
 } from '../constants';
-import { mapData, chestPositions } from '../map';
+import { mapData, chestPositions, structurePlacements } from '../map';
 import { generateFallbacks } from '../fallbacks';
 // Shared types (centralized in types.ts for DRY; no circular imports).
 // GameEnemy uses intersection for Phaser compat; PhysicsCallbackObject union
@@ -146,6 +146,15 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('triforce_piece',    'triforce_piece.png');
         this.load.image('triforce_hud',      'triforce_hud.png');
         this.load.image('triforce_hud_empty', 'triforce_hud_empty.png');
+
+        // Decorative structures (fallbacks generated if PNGs missing)
+        this.load.image('pyramid',      'pyramid.png');
+        this.load.image('totem',        'totem.png');
+        this.load.image('teepee',       'teepee.png');
+        this.load.image('castle',       'castle.png');
+        this.load.image('temple_time',  'temple_time.png');
+        this.load.image('stonehenge',   'stonehenge.png');
+        this.load.image('cabin',        'cabin.png');
     }
 
     // -----------------------------------------------------------------------
@@ -155,6 +164,7 @@ export default class GameScene extends Phaser.Scene {
         generateFallbacks(this);
 
         this._buildTilemap();
+        this._createStructures();
         this._createPlayer();
         this._createEnemies();
         this._createChests();
@@ -282,6 +292,26 @@ export default class GameScene extends Phaser.Scene {
         this.obstacleLayer = buildTilemap(
             this, mapData, TILE_SIZE, MAP_COLS, MAP_ROWS,
         );
+    }
+
+    // _createStructures: place decorative structures on the map.
+    // Purely visual — no collision, no gameplay effect.
+    // Adds sense of wonder and discovery with each new map.
+    _createStructures(): void {
+        for (const placement of structurePlacements) {
+            const { config, x, y } = placement;
+            // Calculate center position for the structure sprite
+            const centerX = x + (config.width * TILE_SIZE) / 2;
+            const centerY = y + (config.height * TILE_SIZE) / 2;
+
+            // Create the structure image (no physics, purely decorative)
+            const structure = this.add.image(centerX, centerY, config.key);
+            // Set depth between tilemap (0) and player (5) so structures are behind player
+            structure.setDepth(2);
+
+            // Log for discovery feedback
+            console.log(`Placed ${config.name} at tile (${placement.col}, ${placement.row})`);
+        }
     }
 
     // =======================================================================

@@ -89,6 +89,32 @@ export const CHEST_CONTENTS: ChestContent[] = [
 /** HP the player is upgraded to when all 3 triforce pieces are collected. */
 export const TRIFORCE_BONUS_HP = 192;  // 8 hearts × 24 HP each
 
+// ---------------------------------------------------------------------------
+// Decorative structures — adds wonder and discovery to each map
+// ---------------------------------------------------------------------------
+
+/** Number of structures to spawn per map generation. */
+export const NUM_STRUCTURES = 2;
+
+/** Structure definitions — purely decorative, no gameplay effect. */
+export type StructureConfig = {
+    key: string;       // texture key
+    name: string;      // human-readable name
+    width: number;     // width in tiles
+    height: number;    // height in tiles
+};
+
+/** All available structure types (2 randomly chosen per map). */
+export const STRUCTURE_TYPES: StructureConfig[] = [
+    { key: 'pyramid',      name: 'Mesoamerican Pyramid', width: 4, height: 4 },
+    { key: 'totem',        name: 'Canadian Totem',       width: 2, height: 4 },
+    { key: 'teepee',       name: 'Teepee',               width: 3, height: 3 },
+    { key: 'castle',       name: 'Tiny Castle',          width: 4, height: 4 },
+    { key: 'temple_time',  name: 'Temple of Time',       width: 5, height: 4 },
+    { key: 'stonehenge',   name: 'Stonehenge',           width: 5, height: 3 },
+    { key: 'cabin',        name: 'Abandoned Cabin',      width: 3, height: 3 },
+];
+
 // Frame index mapping for 512×512 player spritesheet (16 cols of 32px).
 // Phaser frame = row * 16 + col.
 // Added `as const` for stricter typing in consuming code (e.g., frame keys).

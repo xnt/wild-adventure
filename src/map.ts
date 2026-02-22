@@ -1,4 +1,7 @@
-import { MAP_COLS, MAP_ROWS, TILE_SIZE, NUM_CHESTS } from './constants.js';
+import {
+    MAP_COLS, MAP_ROWS, TILE_SIZE, NUM_CHESTS,
+    NUM_STRUCTURES, STRUCTURE_TYPES, StructureConfig,
+} from './constants.js';
 
 // ---------------------------------------------------------------------------
 // Procedural Map Generation (50×50)
@@ -115,3 +118,99 @@ export const generateChestPositions = (
 
 /** Singleton chest positions — generated once alongside mapData. */
 export const chestPositions: ChestPosition[] = generateChestPositions(mapData);
+
+// ---------------------------------------------------------------------------
+// Structure position generation (decorative landmarks)
+// ---------------------------------------------------------------------------
+
+/** Placed structure instance with position and config. */
+export type StructurePlacement = {
+    config: StructureConfig;
+    x: number;  // world x (top-left of structure)
+    y: number;  // world y (top-left of structure)
+    col: number; // tile column
+    row: number; // tile row
+};
+
+/**
+ * Pick `count` random structures and place them on the map.
+ * Structures are placed on grass tiles, avoiding:
+ * - Player spawn area (centre 7×7)
+ * - Map borders
+ * - Overlapping with each other
+ * - Overlapping with obstacles (trees/rocks)
+ *
+ * Pure function (injectable rng for tests).
+ */
+export const generateStructurePlacements = (
+    map: number[][],
+    count: number = NUM_STRUCTURES,
+    cols: number = MAP_COLS,
+    rows: number = MAP_ROWS,
+    rng: () => number = Math.random,
+): StructurePlacement[] => {
+    const placements: StructurePlacement[] = [];
+    const cx = Math.floor(cols / 2);
+    const cy = Math.floor(rows / 2);
+
+    // Shuffle and pick `count` unique structure types
+    const shuffled = [...STRUCTURE_TYPES].sort(() => rng() - 0.5);
+    const selectedTypes = shuffled.slice(0, count);
+
+    for (const config of selectedTypes) {
+        let attempts = 0;
+        let placed = false;
+
+        while (!placed && attempts < 200) {
+            attempts++;
+
+            // Pick random position (must fit structure within bounds)
+            const c = Math.floor(rng() * (cols - config.width - 4)) + 2;
+            const r = Math.floor(rng() * (rows - config.height - 4)) + 2;
+
+            // Avoid spawn area (centre 7×7)
+            if (Math.abs(c - cx) < 5 && Math.abs(r - cy) < 5) continue;
+            if (Math.abs(c + config.width - cx) < 5 && Math.abs(r - cy) < 5) continue;
+
+            // Check all tiles in structure footprint are grass
+            let allGrass = true;
+            for (let dr = 0; dr < config.height && allGrass; dr++) {
+                for (let dc = 0; dc < config.width && allGrass; dc++) {
+                    if (map[r + dr]?.[c + dc] !== 0) {
+                        allGrass = false;
+                    }
+                }
+            }
+            if (!allGrass) continue;
+
+            // Check no overlap with existing placements (min separation)
+            const wx = c * TILE_SIZE;
+            const wy = r * TILE_SIZE;
+            const overlaps = placements.some((p) => {
+                const pRight = p.x + p.config.width * TILE_SIZE;
+                const pBottom = p.y + p.config.height * TILE_SIZE;
+                const newRight = wx + config.width * TILE_SIZE;
+                const newBottom = wy + config.height * TILE_SIZE;
+                // Add buffer of 2 tiles
+                const buffer = 2 * TILE_SIZE;
+                return !(wx >= pRight + buffer || newRight + buffer <= p.x ||
+                         wy >= pBottom + buffer || newBottom + buffer <= p.y);
+            });
+            if (overlaps) continue;
+
+            placements.push({
+                config,
+                x: wx,
+                y: wy,
+                col: c,
+                row: r,
+            });
+            placed = true;
+        }
+    }
+
+    return placements;
+};
+
+/** Singleton structure placements — generated once alongside mapData. */
+export const structurePlacements: StructurePlacement[] = generateStructurePlacements(mapData);
