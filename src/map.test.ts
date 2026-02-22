@@ -3,8 +3,8 @@
 // Run via Vitest (setup mocks Phaser/DOM as needed, though pure here).
 
 import { describe, it, expect } from 'vitest';
-import { MAP_COLS, MAP_ROWS } from './constants.js';  // .js specifier for TS/imports
-import { generateMap, mapData } from './map.js';
+import { MAP_COLS, MAP_ROWS } from './constants';
+import { generateMap, mapData } from './map';
 
 describe('map.ts', () => {
   it('generateMap produces grid within MAP_COLS x MAP_ROWS bounds', () => {

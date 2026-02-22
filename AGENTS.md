@@ -17,7 +17,7 @@ This file helps AI assistants (and humans) understand the project and make consi
 | `src/main.ts` | Phaser config only (canvas size, scale, physics, scene list). Add new scenes here. |
 | `src/constants.ts` | All tunable numbers (speeds, HP, ranges, cooldowns), chest contents (`CHEST_CONTENTS` for triforce pieces and compass), and the player spritesheet frame map (`FRAMES`). Change gameplay balance or sprite layout here. |
 | `src/map.ts` | Procedural 50×50 tilemap. Exports `generateMap()` and `mapData`. Tile types: 0 grass, 1 tree, 2 rock. |
-| `src/fallbacks.ts` | Programmatic texture generation when PNGs are missing. Exports `generateFallbacks(scene)`. Add new fallbacks here if you add new asset keys. |
+| `src/fallbacks/` | Programmatic texture generation when PNGs are missing. Split into modules: `tileFallbacks.ts` (grass/tree/rock), `enemyFallbacks.ts` (goblin/wizrobe/lynel/proj), `uiFallbacks.ts` (hearts/chests/triforce/compass), `structureFallbacks.ts` (decorative landmarks), `playerFallback.ts` (player spritesheet). Main entry: `index.ts` exports `generateFallbacks(scene)`. |
 | `src/gameSceneUtils.ts` | Extracted pure helpers (movement calcs, attack offsets, enemy spawn/AI, UI state) for testability/readability. |
 | `src/scenes/GameScene.ts` | Main game scene: preload, create, update, and all game logic (player, enemies, combat, chests/triforce/compass, UI, touch). Delegates pure logic to utils; use `_methodName` for private-style helpers. |
 | `src/scenes/StartScene.ts` | Title/loading screen shown before the game begins. Teaches controls and mechanics. |

@@ -24,10 +24,10 @@ import {
     createEnemies,
     buildTilemap,
     // updateEnemy: delegated in updateEnemies.
-} from './gameSceneUtils.js';
+} from './gameSceneUtils';
 import type { PositionedObject, GameEnemy } from './types';
 // EnemyConfig for createEnemies test (re-exported via const).
-import type { EnemyConfig } from './constants.js';
+import type { EnemyConfig } from './constants';
 
 describe('gameSceneUtils.ts', () => {
     it('createSlashEffect runs without errors (particle math)', () => {

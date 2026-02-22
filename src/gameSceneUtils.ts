@@ -5,14 +5,14 @@
 // Types reused/adapted from GameScene (intersection for Phaser compat).
 
 import Phaser from 'phaser';
-import type { PositionedObject, GameEnemy, Facing, TouchDir, EnemyConfig } from './types.js';  // .js specifier; from central types.ts (avoids circular); added Facing/TouchDir/EnemyConfig for pure input/calc funcs.
+import type { PositionedObject, GameEnemy, Facing, TouchDir, EnemyConfig } from './types';
 // Constants for enemy AI/math/attack/player.
 import {
     ENEMY_SPEED, CHASE_RANGE, MAP_COLS, MAP_ROWS, TILE_SIZE,
     PLAYER_SPEED, ATTACK_RANGE, IFRAMES_DUR, ATTACK_CD,
     MAX_HP, HEART_HP, NUM_ENEMIES,
     ENEMY_CONFIGS,  // For createEnemies variety config.
-} from './constants.js';
+} from './constants';
 
 /**
  * Creates slash particle effect (pure visual math/animation).

@@ -12,7 +12,7 @@ import {
     NUM_TRIFORCE_PIECES, TRIFORCE_BONUS_HP,
 } from '../constants';
 import { mapData, chestPositions, structurePlacements } from '../map';
-import { generateFallbacks } from '../fallbacks';
+import { generateFallbacks } from '../fallbacks/index';
 // Shared types (centralized in types.ts for DRY; no circular imports).
 // GameEnemy uses intersection for Phaser compat; PhysicsCallbackObject union
 // ensures callback assignability.

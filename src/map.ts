@@ -1,7 +1,7 @@
 import {
     MAP_COLS, MAP_ROWS, TILE_SIZE, NUM_CHESTS,
     NUM_STRUCTURES, STRUCTURE_TYPES, StructureConfig,
-} from './constants.js';
+} from './constants';
 
 // ---------------------------------------------------------------------------
 // Procedural Map Generation (50×50)

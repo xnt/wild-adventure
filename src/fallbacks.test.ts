@@ -1,11 +1,11 @@
-// Tests for fallbacks.ts (matches file-under-test).
+// Tests for fallbacks (matches file-under-test).
 // Mocks Phaser/canvas (via setup); tests gen + player sword fallback.
 
 import { describe, it, expect, vi } from 'vitest';
 import Phaser from 'phaser';  // Mocked in setup
-import { generateFallbacks, generatePlayerFallback } from './fallbacks.js';  // .js specifier; latter exported for test
+import { generateFallbacks, generatePlayerFallback } from './fallbacks/index';
 
-describe('fallbacks.ts', () => {
+describe('fallbacks', () => {
   it('generateFallbacks calls scene textures without errors (mocks Phaser)', () => {
     // Mock scene minimally (matches fallbacks.ts usage + setup's Graphics mock).
     // add.graphics returns object with methods; textures.exists=false to trigger gen,

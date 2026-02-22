@@ -8,8 +8,8 @@
 // ===========================================================================
 
 import Phaser from 'phaser';
-import StartScene from './scenes/StartScene.js';
-import GameScene from './scenes/GameScene.js';
+import StartScene from './scenes/StartScene';
+import GameScene from './scenes/GameScene';
 
 // Typed Phaser game config for better safety (leverages Phaser's built-in types).
 const config: Phaser.Types.Core.GameConfig = {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateFallbacks } from '../fallbacks.js';
+import { generateFallbacks } from '../fallbacks/index';
 
 // ===========================================================================
 // StartScene — title / loading screen shown before the game begins.

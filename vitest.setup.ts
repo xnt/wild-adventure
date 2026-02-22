@@ -51,7 +51,7 @@ vi.mock('phaser', () => ({
           generateTexture: vi.fn(),
           destroy: vi.fn(),
         })),
-        tileSprite: vi.fn().mockReturnValue({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis() }),
+        tileSprite: vi.fn().mockReturnValue({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setAlpha: vi.fn().mockReturnThis() }),
         rectangle: vi.fn().mockReturnValue({ setScrollFactor: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setVisible: vi.fn().mockReturnThis() }),
         text: vi.fn().mockReturnValue({ setScrollFactor: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setOrigin: vi.fn().mockReturnThis(), setColor: vi.fn().mockReturnThis(), setVisible: vi.fn().mockReturnThis() }),
         image: vi.fn().mockReturnValue({ setScrollFactor: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis(), setScale: vi.fn().mockReturnThis(), setTexture: vi.fn().mockReturnThis(), setVisible: vi.fn().mockReturnThis(), setRotation: vi.fn().mockReturnThis() }),
