@@ -242,6 +242,67 @@ export const generateFallbacks = (scene: Phaser.Scene): void => {
         g.generateTexture('triforce_hud_empty', 16, 16);
     }
 
+    // ---- Compass (collectable item from chest) ----
+    if (!scene.textures.exists('compass')) {
+        g.clear();
+        // Outer ring
+        g.fillStyle(0xffd700); // gold
+        g.fillCircle(8, 8, 7);
+        // Inner circle (face)
+        g.fillStyle(0xffffff);
+        g.fillCircle(8, 8, 5);
+        // Cardinal marks
+        g.fillStyle(0x000000);
+        g.fillRect(7, 2, 2, 2); // N
+        g.fillRect(7, 12, 2, 2); // S
+        g.fillRect(2, 7, 2, 2); // W
+        g.fillRect(12, 7, 2, 2); // E
+        // Needle (red pointing up)
+        g.fillStyle(0xff0000);
+        g.fillTriangle(8, 4, 6, 8, 10, 8);
+        // Needle (white pointing down)
+        g.fillStyle(0xcccccc);
+        g.fillTriangle(8, 12, 6, 8, 10, 8);
+        g.generateTexture('compass', 16, 16);
+    }
+
+    // ---- Compass HUD icon (shows in HUD when collected) ----
+    if (!scene.textures.exists('compass_hud')) {
+        g.clear();
+        // Outer ring
+        g.fillStyle(0xffd700);
+        g.fillCircle(8, 8, 7);
+        // Inner circle
+        g.fillStyle(0xffffff);
+        g.fillCircle(8, 8, 5);
+        // Needle
+        g.fillStyle(0xff0000);
+        g.fillTriangle(8, 3, 5, 9, 11, 9);
+        g.generateTexture('compass_hud', 16, 16);
+    }
+
+    // ---- Compass HUD empty (dimmed, uncollected indicator) ----
+    if (!scene.textures.exists('compass_hud_empty')) {
+        g.clear();
+        g.fillStyle(0x444444);
+        g.fillCircle(8, 8, 7);
+        g.fillStyle(0x333333);
+        g.fillCircle(8, 8, 5);
+        g.generateTexture('compass_hud_empty', 16, 16);
+    }
+
+    // ---- Compass arrow indicator (points to closest enemy) ----
+    if (!scene.textures.exists('compass_arrow')) {
+        g.clear();
+        // Arrow / triangle pointing up (will be rotated in game)
+        g.fillStyle(0xff4444); // red arrow
+        g.fillTriangle(8, 0, 0, 16, 16, 16);
+        // Inner highlight
+        g.fillStyle(0xff6666);
+        g.fillTriangle(8, 4, 4, 14, 12, 14);
+        g.generateTexture('compass_arrow', 16, 16);
+    }
+
     // =========================================================================
     // DECORATIVE STRUCTURES — multi-tile textures for world discovery
     // =========================================================================

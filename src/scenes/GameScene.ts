@@ -7,9 +7,9 @@ import {
     IFRAMES_DUR, FRAMES as F,
     // Enemy variety
     ENEMY_CONFIGS, PROJ_LIFETIME,
-    // Chest / triforce
+    // Chest / triforce / compass
     NUM_CHESTS, CHEST_CONTENTS, CHEST_INTERACT_RANGE,
-    TRIFORCE_BONUS_HP,
+    NUM_TRIFORCE_PIECES, TRIFORCE_BONUS_HP,
 } from '../constants';
 import { mapData, chestPositions, structurePlacements } from '../map';
 import { generateFallbacks } from '../fallbacks';
@@ -96,6 +96,11 @@ export default class GameScene extends Phaser.Scene {
     triforceHudSprites: Phaser.GameObjects.Image[] = [];
     chestFlashText!: Phaser.GameObjects.Text;  // brief label when opening a chest
 
+    // Compass state
+    hasCompass!: boolean;              // true once player collects the compass
+    compassArrow!: Phaser.GameObjects.Image;  // HUD arrow pointing to closest enemy
+    compassHudSprite!: Phaser.GameObjects.Image;  // compass icon in HUD
+
     constructor() {
         super({ key: 'GameScene' });
     }
@@ -113,6 +118,7 @@ export default class GameScene extends Phaser.Scene {
         this.gameOver       = false;
         this.victory        = false;
         this.triforcePieces = 0;
+        this.hasCompass     = false;
     }
 
     // -----------------------------------------------------------------------
@@ -146,6 +152,12 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('triforce_piece',    'triforce_piece.png');
         this.load.image('triforce_hud',      'triforce_hud.png');
         this.load.image('triforce_hud_empty', 'triforce_hud_empty.png');
+
+        // Compass assets (fallbacks generated if PNGs missing)
+        this.load.image('compass',           'compass.png');
+        this.load.image('compass_hud',       'compass_hud.png');
+        this.load.image('compass_hud_empty', 'compass_hud_empty.png');
+        this.load.image('compass_arrow',     'compass_arrow.png');
 
         // Decorative structures (fallbacks generated if PNGs missing)
         this.load.image('pyramid',      'pyramid.png');
@@ -810,6 +822,9 @@ export default class GameScene extends Phaser.Scene {
             case 'triforce_piece':
                 this._collectTriforcePiece(chest);
                 break;
+            case 'compass':
+                this._collectCompass(chest);
+                break;
             // future: case 'potion': / case 'key': / etc.
         }
     }
@@ -843,9 +858,49 @@ export default class GameScene extends Phaser.Scene {
         this.cameras.main.flash(300, 255, 215, 0, false); // gold flash
 
         // Check full triforce
-        if (this.triforcePieces >= NUM_CHESTS) {
+        if (this.triforcePieces >= NUM_TRIFORCE_PIECES) {
             this._onTriforceComplete();
         }
+    }
+
+    /**
+     * Award the compass: enables the enemy-tracking arrow indicator in the HUD.
+     */
+    _collectCompass(chest: GameChest): void {
+        this.hasCompass = true;
+
+        // Spawn a floating compass that tweens upward
+        const compassIcon = this.add.image(chest.x, chest.y - 16, 'compass')
+            .setDepth(10).setScale(1.5);
+
+        this.tweens.add({
+            targets: compassIcon,
+            y: compassIcon.y - 32,
+            alpha: 0,
+            scaleX: 2.5,
+            scaleY: 2.5,
+            duration: 800,
+            ease: 'Back.easeOut',
+            onComplete: () => compassIcon.destroy(),
+        });
+
+        // Flash label
+        this._showChestFlash(chest.content.label);
+
+        // Camera feedback (cyan flash for compass)
+        this.cameras.main.flash(300, 100, 200, 255, false);
+
+        // Show the compass arrow now that we have the compass
+        if (this.compassArrow) {
+            this.compassArrow.setVisible(true);
+        }
+
+        // Update compass HUD icon
+        if (this.compassHudSprite) {
+            this.compassHudSprite.setTexture('compass_hud');
+        }
+
+        console.log('Compass collected! Enemy tracker enabled.');
     }
 
     /**
@@ -937,12 +992,22 @@ export default class GameScene extends Phaser.Scene {
 
         // Triforce piece indicators (top-right area of HUD)
         this.triforceHudSprites = [];
-        for (let i = 0; i < NUM_CHESTS; i++) {
-            const tx = this.scale.width - 80 + i * 24;
+        for (let i = 0; i < NUM_TRIFORCE_PIECES; i++) {
+            const tx = this.scale.width - 100 + i * 24;
             const tri = this.add.image(tx, 20, 'triforce_hud_empty')
                 .setScrollFactor(0).setDepth(100).setScale(1.3);
             this.triforceHudSprites.push(tri);
         }
+
+        // Compass HUD indicator (next to triforce pieces)
+        const compassX = this.scale.width - 100 + NUM_TRIFORCE_PIECES * 24 + 8;
+        this.compassHudSprite = this.add.image(compassX, 20, 'compass_hud_empty')
+            .setScrollFactor(0).setDepth(100).setScale(1.3);
+
+        // Compass arrow indicator (centered at top of screen, points to closest enemy)
+        // Hidden until player collects the compass
+        this.compassArrow = this.add.image(this.scale.width / 2, 50, 'compass_arrow')
+            .setScrollFactor(0).setDepth(100).setScale(1.2).setVisible(false);
 
         // Overlay UI elements (hearts, enemies count, game over/victory)
         // (Debug text removed per request; console logs remain for dev if needed.)
@@ -963,7 +1028,7 @@ export default class GameScene extends Phaser.Scene {
 
     _updateUI(): void {
         // Current effective max HP (upgraded after triforce)
-        const effectiveMaxHp = this.triforcePieces >= NUM_CHESTS ? TRIFORCE_BONUS_HP : MAX_HP;
+        const effectiveMaxHp = this.triforcePieces >= NUM_TRIFORCE_PIECES ? TRIFORCE_BONUS_HP : MAX_HP;
         const numHearts = this.heartSprites.length;
         for (let i = 0; i < numHearts; i++) {
             // Delegate pure texture key calc (HP state).
@@ -983,9 +1048,55 @@ export default class GameScene extends Phaser.Scene {
             );
         }
 
+        // Compass arrow — point toward closest enemy
+        this._updateCompassArrow();
+
         if (remaining <= 0 && !this.victory) {
             this._showVictory();
         }
+    }
+
+    /**
+     * Update the compass arrow to point toward the closest living enemy.
+     * Only visible if the player has the compass and enemies remain.
+     */
+    _updateCompassArrow(): void {
+        if (!this.hasCompass || !this.compassArrow) return;
+
+        // Find closest living enemy
+        let closestEnemy: GameEnemy | null = null;
+        let closestDist = Infinity;
+
+        this.enemies.getChildren().forEach((child) => {
+            const enemy = child as GameEnemy;
+            if (!enemy.active || enemy.isDying) return;
+
+            const dist = Phaser.Math.Distance.Between(
+                this.player.x, this.player.y, enemy.x, enemy.y,
+            );
+            if (dist < closestDist) {
+                closestDist = dist;
+                closestEnemy = enemy;
+            }
+        });
+
+        if (!closestEnemy) {
+            // No enemies left — hide the arrow
+            this.compassArrow.setVisible(false);
+            return;
+        }
+
+        // Calculate angle from player to enemy
+        // Phaser rotation is in radians, 0 = right, π/2 = down
+        // Our arrow texture points up (0 radians = up), so we need to offset
+        const angle = Phaser.Math.Angle.Between(
+            this.player.x, this.player.y,
+            closestEnemy.x, closestEnemy.y,
+        );
+
+        // Rotate arrow: texture points up (-π/2), so add π/2 to align
+        this.compassArrow.setRotation(angle + Math.PI / 2);
+        this.compassArrow.setVisible(true);
     }
 
     // =======================================================================

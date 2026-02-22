@@ -66,25 +66,29 @@ export const PROJ_LIFETIME = 4000;  // ms before projectile auto-destroys
 // Chest / collectible settings
 // ---------------------------------------------------------------------------
 
-export const NUM_CHESTS = 3;           // total chests on the map
+export const NUM_CHESTS = 4;           // total chests on the map (3 triforce + 1 compass)
 export const CHEST_INTERACT_RANGE = 40; // px — player must be within this to open
 
 /**
- * Describes what a chest contains.  Currently every chest holds a triforce
- * piece, but the shape is intentionally generic so we can add potions,
+ * Describes what a chest contains.  Currently holds triforce pieces or
+ * a compass, but the shape is intentionally generic so we can add potions,
  * keys, weapons, etc. later without changing the chest infrastructure.
  */
 export type ChestContent = {
-    type: 'triforce_piece';  // extend union when new loot types are added
+    type: 'triforce_piece' | 'compass';  // extend union when new loot types are added
     label: string;           // human-readable name shown in UI flash
 };
 
-/** Default contents for the 3 chests (indexed by chest order). */
+/** Default contents for the 4 chests (indexed by chest order). */
 export const CHEST_CONTENTS: ChestContent[] = [
     { type: 'triforce_piece', label: 'Triforce of Courage' },
     { type: 'triforce_piece', label: 'Triforce of Wisdom' },
     { type: 'triforce_piece', label: 'Triforce of Power' },
+    { type: 'compass', label: 'Compass' },
 ];
+
+/** Number of triforce pieces required for the full triforce bonus. */
+export const NUM_TRIFORCE_PIECES = 3;
 
 /** HP the player is upgraded to when all 3 triforce pieces are collected. */
 export const TRIFORCE_BONUS_HP = 192;  // 8 hearts × 24 HP each

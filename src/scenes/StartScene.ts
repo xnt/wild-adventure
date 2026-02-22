@@ -39,6 +39,10 @@ export default class StartScene extends Phaser.Scene {
         this.load.image('triforce_piece',     'triforce_piece.png');
         this.load.image('triforce_hud',       'triforce_hud.png');
         this.load.image('triforce_hud_empty', 'triforce_hud_empty.png');
+        this.load.image('compass',            'compass.png');
+        this.load.image('compass_hud',        'compass_hud.png');
+        this.load.image('compass_hud_empty',  'compass_hud_empty.png');
+        this.load.image('compass_arrow',      'compass_arrow.png');
     }
 
     // -----------------------------------------------------------------------
@@ -133,6 +137,7 @@ export default class StartScene extends Phaser.Scene {
         const goalLines = [
             { icon: '💛', text: 'Walk into chests to collect Triforce pieces' },
             { icon: '✦',  text: 'Collect all 3 pieces → HP upgraded to 8 hearts!' },
+            { icon: '🧭', text: 'Find the Compass → arrow points to enemies!' },
             { icon: '👾', text: 'Defeat all enemies to win' },
         ];
         goalLines.forEach((line, i) => {
@@ -224,7 +229,7 @@ export default class StartScene extends Phaser.Scene {
             ease: 'Sine.easeInOut',
         });
 
-        this.add.text(cx + 30, chestY, 'Find 3 chests → Complete the Triforce!', {
+        this.add.text(cx + 30, chestY, 'Find 4 chests → Triforce + Compass!', {
             fontFamily: 'monospace',
             fontSize: '12px',
             color: '#ffd700',

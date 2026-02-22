@@ -6,7 +6,7 @@ This file helps AI assistants (and humans) understand the project and make consi
 
 - **Runtime**: Phaser 4 RC (arcade physics), no game framework beyond that. (See PHASER4_MIGRATION.md for details.)
 - **Build**: Vite. ES modules throughout; no CommonJS.
-- **Entry**: `index.html` → `/src/main.ts` → `new Phaser.Game(config)` with a single scene, `GameScene`.
+- **Entry**: `index.html` → `/src/main.ts` → `new Phaser.Game(config)` with scenes: `StartScene` (title) → `GameScene` (gameplay).
 
 **Run**: `npm install` then `npm run dev` (dev server) or `npm run build` + `npm run preview` (production).
 
@@ -15,11 +15,12 @@ This file helps AI assistants (and humans) understand the project and make consi
 | Path | Role |
 |------|------|
 | `src/main.ts` | Phaser config only (canvas size, scale, physics, scene list). Add new scenes here. |
-| `src/constants.ts` | All tunable numbers (speeds, HP, ranges, cooldowns) and the player spritesheet frame map (`FRAMES`). Change gameplay balance or sprite layout here. |
+| `src/constants.ts` | All tunable numbers (speeds, HP, ranges, cooldowns), chest contents (`CHEST_CONTENTS` for triforce pieces and compass), and the player spritesheet frame map (`FRAMES`). Change gameplay balance or sprite layout here. |
 | `src/map.ts` | Procedural 50×50 tilemap. Exports `generateMap()` and `mapData`. Tile types: 0 grass, 1 tree, 2 rock. |
 | `src/fallbacks.ts` | Programmatic texture generation when PNGs are missing. Exports `generateFallbacks(scene)`. Add new fallbacks here if you add new asset keys. |
 | `src/gameSceneUtils.ts` | Extracted pure helpers (movement calcs, attack offsets, enemy spawn/AI, UI state) for testability/readability. |
-| `src/scenes/GameScene.ts` | The only scene: preload, create, update, and all game logic (player, enemies, combat, UI, touch). Delegates pure logic to utils; use `_methodName` for private-style helpers. |
+| `src/scenes/GameScene.ts` | Main game scene: preload, create, update, and all game logic (player, enemies, combat, chests/triforce/compass, UI, touch). Delegates pure logic to utils; use `_methodName` for private-style helpers. |
+| `src/scenes/StartScene.ts` | Title/loading screen shown before the game begins. Teaches controls and mechanics. |
 | `src/types.ts` | Shared types (GameEnemy, Facing, etc.) for DRY/TS safety. |
 | `public/` | Static assets. Vite serves these at `/`. Game loads e.g. `grass.png` from root, so files go in `public/` (e.g. `public/grass.png`). |
 
