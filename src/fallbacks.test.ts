@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import Phaser from 'phaser';  // Mocked in setup
-import { generateFallbacks, generatePlayerFallback } from './fallbacks/index';
+import { generateFallbacks, generatePlayerFallback } from './fallbacks/index.js';
 
 describe('fallbacks', () => {
   it('generateFallbacks calls scene textures without errors (mocks Phaser)', () => {

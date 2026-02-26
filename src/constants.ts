@@ -3,11 +3,21 @@
 // ---------------------------------------------------------------------------
 
 export const TILE_SIZE: number    = 32;
-export const MAP_COLS: number     = 50;
-export const MAP_ROWS: number     = 50;
+export const MAP_COLS: number     = 60;
+export const MAP_ROWS: number     = 60;
+
+export const TILE_IDS = {
+    PLAINS: 0,
+    TREE: 1,
+    ROCK: 2,
+    FOREST: 3,
+    SWAMP: 4,
+    SNOW: 5,
+} as const;
 
 export const PLAYER_SPEED = 160;
 export const ENEMY_SPEED  = 50;
+
 export const CHASE_RANGE  = 128;
 
 export const ATTACK_RANGE = 48;
@@ -17,7 +27,7 @@ export const ATTACK_CD    = 1000;  // cooldown between attacks (ms)
 export const MAX_HP       = 96;    // 4 hearts × 24 HP each
 export const HEART_HP     = 24;    // HP per heart container
 export const ENEMY_DMG    = 24;    // damage per enemy touch
-export const NUM_ENEMIES  = 5;
+export const NUM_ENEMIES  = 7;
 
 export const IFRAMES_DUR  = 800;   // invincibility after hit (ms)
 
@@ -56,6 +66,20 @@ export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
         shoots: false,
         texture: 'lynel',
         scale: 1.2,
+    },
+    gel: {
+        hp: 1,
+        speedMult: 0.8,
+        shoots: false,
+        texture: 'gel',
+        scale: 0.7,
+    },
+    gel_small: {
+        hp: 1,
+        speedMult: 0.5,
+        shoots: false,
+        texture: 'gel',
+        scale: 0.5,
     },
 };
 

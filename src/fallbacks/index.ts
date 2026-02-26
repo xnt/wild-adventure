@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { generateTileFallbacks } from './tileFallbacks';
-import { generateEnemyFallbacks } from './enemyFallbacks';
-import { generateUIFallbacks } from './uiFallbacks';
-import { generateStructureFallbacks } from './structureFallbacks';
-import { generatePlayerFallback } from './playerFallback';
+import { generateTileFallbacks } from './tileFallbacks.js';
+import { generateEnemyFallbacks } from './enemyFallbacks.js';
+import { generateUIFallbacks } from './uiFallbacks.js';
+import { generateStructureFallbacks } from './structureFallbacks.js';
+import { generatePlayerFallback } from './playerFallback.js';
 
 // ---------------------------------------------------------------------------
 // Fallback texture generation

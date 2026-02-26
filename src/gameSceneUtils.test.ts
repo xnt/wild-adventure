@@ -24,10 +24,10 @@ import {
     createEnemies,
     buildTilemap,
     // updateEnemy: delegated in updateEnemies.
-} from './gameSceneUtils';
-import type { PositionedObject, GameEnemy } from './types';
+} from './gameSceneUtils.js';
+import type { PositionedObject, GameEnemy } from './types.js';
 // EnemyConfig for createEnemies test (re-exported via const).
-import type { EnemyConfig } from './constants';
+import type { EnemyConfig } from './constants.js';
 
 describe('gameSceneUtils.ts', () => {
     it('createSlashEffect runs without errors (particle math)', () => {
@@ -197,9 +197,11 @@ describe('gameSceneUtils.ts (extracted pure logic)', () => {
         // Player far for dist>200 pass (rng default yields valid).
         const player: PositionedObject = { x: 1000, y: 1000 };
 
-        const enemies = createEnemies(mockScene, 3, mapData, player);  // Guarantees variety (cycle).
+        const enemies = createEnemies(mockScene, 7, mapData, player);  // Guarantees variety (cycle).
         expect(enemies.length).toBeGreaterThan(0);
         expect(enemies.some(e => e.type === 'lynel')).toBe(true);  // Variety.
+        expect(enemies.some(e => e.type === 'gel')).toBe(true);
+        expect(enemies.some(e => e.type === 'gel_small')).toBe(false);
 
         const obsLayer = buildTilemap(mockScene, mapData, 32, 3, 3);
         expect(obsLayer).toBeDefined();  // Obs group + bounds.

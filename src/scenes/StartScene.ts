@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateFallbacks } from '../fallbacks/index';
+import { generateFallbacks } from '../fallbacks/index.js';
 
 // ===========================================================================
 // StartScene — title / loading screen shown before the game begins.
@@ -26,11 +26,15 @@ export default class StartScene extends Phaser.Scene {
             frameWidth: 32, frameHeight: 32,
         });
         this.load.image('grass',              'grass.png');
+        this.load.image('forest',             'forest.png');
+        this.load.image('swamp',              'swamp.png');
+        this.load.image('snow',               'snow.png');
         this.load.image('tree',               'tree.png');
         this.load.image('rock',               'rock.png');
         this.load.image('goblin',             'goblin.png');
         this.load.image('wizrobe',            'wizrobe.png');
         this.load.image('lynel',              'lynel.png');
+        this.load.image('gel',                'gel.png');
         this.load.image('enemy_proj',         'enemy_proj.png');
         this.load.image('heart_full',         'heart_full.png');
         this.load.image('heart_empty',        'heart_empty.png');
@@ -43,6 +47,13 @@ export default class StartScene extends Phaser.Scene {
         this.load.image('compass_hud',        'compass_hud.png');
         this.load.image('compass_hud_empty',  'compass_hud_empty.png');
         this.load.image('compass_arrow',      'compass_arrow.png');
+        this.load.image('pyramid',            'pyramid.png');
+        this.load.image('totem',              'totem.png');
+        this.load.image('teepee',             'teepee.png');
+        this.load.image('castle',             'castle.png');
+        this.load.image('temple_time',        'temple_time.png');
+        this.load.image('stonehenge',         'stonehenge.png');
+        this.load.image('cabin',              'cabin.png');
     }
 
     // -----------------------------------------------------------------------

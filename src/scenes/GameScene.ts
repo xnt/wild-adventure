@@ -5,14 +5,15 @@ import {
     ATTACK_RANGE, ATTACK_DUR, ATTACK_CD,
     MAX_HP, HEART_HP, ENEMY_DMG, NUM_ENEMIES,
     IFRAMES_DUR, FRAMES as F,
+    TILE_IDS,
     // Enemy variety
     ENEMY_CONFIGS, PROJ_LIFETIME,
     // Chest / triforce / compass
     NUM_CHESTS, CHEST_CONTENTS, CHEST_INTERACT_RANGE,
     NUM_TRIFORCE_PIECES, TRIFORCE_BONUS_HP,
-} from '../constants';
-import { mapData, chestPositions, structurePlacements } from '../map';
-import { generateFallbacks } from '../fallbacks/index';
+} from '../constants.js';
+import { mapData, chestPositions, structurePlacements } from '../map.js';
+import { generateFallbacks } from '../fallbacks/index.js';
 // Shared types (centralized in types.ts for DRY; no circular imports).
 // GameEnemy uses intersection for Phaser compat; PhysicsCallbackObject union
 // ensures callback assignability.
@@ -23,7 +24,7 @@ import type {
     PhysicsCallbackObject,
     PositionedObject,
     EnemyConfig,  // Re-exported from constants
-} from '../types';
+} from '../types.js';
 // Non-UI utils (extracted for readability/testability: effects/math calcs, AI, spawn).
 // Relative path from scenes/ dir.
 import {
@@ -48,7 +49,7 @@ import {
     // createEnemies, buildTilemap: stubs now complete below in this iteration (full extract).
     createEnemies,
     buildTilemap,
-} from '../gameSceneUtils';
+} from '../gameSceneUtils.js';
 
 // ===========================================================================
 // GameScene — the single scene that runs the entire game
@@ -85,6 +86,7 @@ export default class GameScene extends Phaser.Scene {
     lastAttackTime!: number;
     lastHitTime!: number;
     enemiesKilled!: number;
+    totalEnemies!: number;
     gameOver!: boolean;
     victory!: boolean;
     touchDir: TouchDir = { x: 0, y: 0 };
@@ -115,6 +117,7 @@ export default class GameScene extends Phaser.Scene {
         this.lastAttackTime = 0;
         this.lastHitTime    = 0;
         this.enemiesKilled  = 0;
+        this.totalEnemies   = NUM_ENEMIES;
         this.gameOver       = false;
         this.victory        = false;
         this.triforcePieces = 0;
@@ -134,6 +137,9 @@ export default class GameScene extends Phaser.Scene {
             frameWidth: 32, frameHeight: 32,
         });
         this.load.image('grass',       'grass.png');
+        this.load.image('forest',      'forest.png');
+        this.load.image('swamp',       'swamp.png');
+        this.load.image('snow',        'snow.png');
         this.load.image('tree',        'tree.png');
         this.load.image('rock',        'rock.png');
 
@@ -141,6 +147,7 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('goblin',      'goblin.png');
         this.load.image('wizrobe',     'wizrobe.png');  // shoots slow projectiles
         this.load.image('lynel',       'lynel.png');    // slow, 3-hit tank
+        this.load.image('gel',         'gel.png');      // sticky slow blob
         this.load.image('enemy_proj',  'enemy_proj.png'); // Wizrobe projectile
 
         this.load.image('heart_full',  'heart_full.png');
@@ -692,9 +699,43 @@ export default class GameScene extends Phaser.Scene {
         });
 
         if (enemy.hp <= 0) {
+            if (enemy.type === 'gel') {
+                this._splitGel(enemy);
+                return;
+            }
             // Delegate to existing kill logic (death effect, heart drop, etc.)
             this._killEnemy(enemy);
         }
+    }
+
+    _splitGel(enemy: GameEnemy): void {
+        // Remove original without heart drop; then spawn two small gels
+        enemy.isDying = true;
+        enemy.body!.enable = false;
+
+        this.totalEnemies += 1;
+
+        const offsets = [-10, 10];
+        offsets.forEach((offset) => {
+            const spawnX = enemy.x + offset;
+            const spawnY = enemy.y - offset;
+            const gel = this.physics.add.sprite(spawnX, spawnY, 'gel') as GameEnemy;
+            const config = ENEMY_CONFIGS.gel_small;
+            gel.setDepth(4).setCollideWorldBounds(true);
+            gel.setScale(config.scale ?? 0.5);
+            gel.body!.setSize(14, 10).setOffset(9, 14);
+            gel.type = 'gel_small';
+            gel.hp = config.hp;
+            gel.speedMult = config.speedMult;
+            gel.shoots = false;
+            gel.patrolTarget = new Phaser.Math.Vector2(spawnX, spawnY);
+            gel.patrolTimer = 0;
+            gel.isChasing = false;
+            gel.isDying = false;
+            this.enemies.add(gel);
+        });
+
+        enemy.destroy();
     }
 
     // -----------------------------------------------------------------------
@@ -739,10 +780,13 @@ export default class GameScene extends Phaser.Scene {
         // Cast for custom prop access (isDying); union doesn't guarantee.
         const enemyTyped = enemy as GameEnemy;
         if (enemyTyped.isDying) return;
+
+
         // Delegate to shared damage func
         // Cast enemy (known to be GameEnemy from group).
         this._damagePlayer(enemyTyped);
     }
+
 
     // -----------------------------------------------------------------------
     // _onPlayerHitByProj — player hit by Wizrobe's slow projectile
@@ -985,7 +1029,7 @@ export default class GameScene extends Phaser.Scene {
             this.heartSprites.push(heart);
         }
 
-        this.enemyText = this.add.text(20, 48, `Enemies: ${NUM_ENEMIES}/${NUM_ENEMIES}`, {
+        this.enemyText = this.add.text(20, 48, `Enemies: ${this.totalEnemies}/${this.totalEnemies}`, {
             fontFamily: 'monospace', fontSize: '16px',
             color: '#ffffff', stroke: '#000000', strokeThickness: 3,
         }).setScrollFactor(0).setDepth(100);
@@ -1038,8 +1082,8 @@ export default class GameScene extends Phaser.Scene {
         }
 
         // Pure remaining calc.
-        const remaining = getRemainingEnemies(this.enemiesKilled, NUM_ENEMIES);
-        this.enemyText.setText(`Enemies: ${remaining}/${NUM_ENEMIES}`);
+        const remaining = getRemainingEnemies(this.enemiesKilled, this.totalEnemies);
+        this.enemyText.setText(`Enemies: ${remaining}/${this.totalEnemies}`);
 
         // Triforce HUD — light up collected pieces
         for (let i = 0; i < this.triforceHudSprites.length; i++) {

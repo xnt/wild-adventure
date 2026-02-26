@@ -39,14 +39,14 @@ export type PositionedObject = { x: number; y: number };
 export type Facing = 'up' | 'down' | 'left' | 'right';
 
 // Re-export EnemyConfig and ChestContent from constants for convenience.
-export type { EnemyConfig, ChestContent } from './constants';
+export type { EnemyConfig, ChestContent } from './constants.js';
 
 /**
  * Intersection type for chest sprites placed in the world.
  * `content` is intentionally generic (ChestContent) so chests can hold
  * different item types in the future (potions, keys, etc.).
  */
-import type { ChestContent as _ChestContent } from './constants';
+import type { ChestContent as _ChestContent } from './constants.js';
 export type GameChest = Phaser.Physics.Arcade.Sprite & {
     opened: boolean;
     chestIndex: number;        // position in CHEST_CONTENTS array

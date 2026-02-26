@@ -1,58 +1,82 @@
 import {
-    MAP_COLS, MAP_ROWS, TILE_SIZE, NUM_CHESTS,
+    MAP_COLS, MAP_ROWS, TILE_SIZE, NUM_CHESTS, TILE_IDS,
     NUM_STRUCTURES, STRUCTURE_TYPES, StructureConfig,
-} from './constants';
+} from './constants.js';
 
 // ---------------------------------------------------------------------------
-// Procedural Map Generation (50×50)
-// Tile types: 0 = grass, 1 = tree (impassable), 2 = rock (impassable)
+// Procedural Map Generation (biomes + obstacles)
+// Tile types: plains/forest/swamp/snow + obstacles (tree/rock)
 // ---------------------------------------------------------------------------
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
+const getBiomeForCell = (c: number, r: number, cols: number, rows: number): number => {
+    const nx = c / Math.max(1, cols - 1);
+    const ny = r / Math.max(1, rows - 1);
+
+    const tempWave = Math.sin((nx * 2.2) + (ny * 1.4) + 0.6);
+    const humidWave = Math.sin((nx * 1.7) - (ny * 2.1) + 1.8);
+
+    const temperature = clamp01(0.5 + 0.5 * tempWave + (nx - 0.5) * 0.12);
+    const humidity = clamp01(0.5 + 0.5 * humidWave - (ny - 0.5) * 0.1);
+
+    if (temperature < 0.35) return TILE_IDS.SNOW;
+    if (humidity > 0.65) return TILE_IDS.SWAMP;
+    if (humidity > 0.48) return TILE_IDS.FOREST;
+    return TILE_IDS.PLAINS;
+};
+
+const getObstacleTile = (biome: number, rng: number): number => {
+    if (biome === TILE_IDS.FOREST && rng < 0.25) return TILE_IDS.TREE;
+    if (biome === TILE_IDS.SWAMP && rng < 0.12) return TILE_IDS.TREE;
+    if (biome === TILE_IDS.SNOW && rng < 0.18) return TILE_IDS.ROCK;
+    if (biome === TILE_IDS.PLAINS && rng < 0.10) return TILE_IDS.ROCK;
+    return biome;
+};
 
 /**
  * Generate a randomised tilemap array.
- * ~80 % grass, ~12 % trees, ~8 % rocks, with carved cross-paths through the
- * centre and a tree border wall.  A clear 5×5 area is left around the
+ * Biomes are chosen by a simple noise-like function and obstacles are
+ * sprinkled based on biome density. A clear 5×5 area is left around the
  * player spawn point.
  */
 // Added TypeScript types here (and to mapData below) to validate transpilation,
-// type safety for tile values (0=grass,1=tree,2=rock), and integration with Vite.
+// type safety for tile values, and integration with Vite.
 export const generateMap = (cols: number = MAP_COLS, rows: number = MAP_ROWS): number[][] => {
     const map = [];
 
     for (let r = 0; r < rows; r++) {
         const row = [];
         for (let c = 0; c < cols; c++) {
-            // Border walls
+            // Border walls stay forested for a natural boundary.
             if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) {
-                row.push(1);
+                row.push(TILE_IDS.TREE);
                 continue;
             }
             // Clear spawn area around centre
             const cx = Math.floor(cols / 2);
             const cy = Math.floor(rows / 2);
             if (Math.abs(c - cx) < 3 && Math.abs(r - cy) < 3) {
-                row.push(0);
+                row.push(TILE_IDS.PLAINS);
                 continue;
             }
-            // Random fill
-            const rnd = Math.random();
-            if (rnd < 0.80)      row.push(0); // grass
-            else if (rnd < 0.92) row.push(1); // tree
-            else                 row.push(2); // rock
+
+            const biome = getBiomeForCell(c, r, cols, rows);
+            row.push(getObstacleTile(biome, Math.random()));
         }
         map.push(row);
     }
 
-    // Carve cross-paths through the centre
+    // Carve cross-paths through the centre (plains)
     const midR = Math.floor(rows / 2);
     const midC = Math.floor(cols / 2);
     for (let c = 1; c < cols - 1; c++) {
-        map[midR][c]     = 0;
-        map[midR - 1][c] = 0;
+        map[midR][c]     = TILE_IDS.PLAINS;
+        map[midR - 1][c] = TILE_IDS.PLAINS;
     }
     for (let r = 1; r < rows - 1; r++) {
-        map[r][midC]     = 0;
-        map[r][midC + 1] = 0;
+        map[r][midC]     = TILE_IDS.PLAINS;
+        map[r][midC + 1] = TILE_IDS.PLAINS;
     }
 
     return map;
@@ -69,7 +93,7 @@ export const mapData: number[][] = generateMap();
 export type ChestPosition = { x: number; y: number };
 
 /**
- * Pick `count` random grass-tile positions for chests, spread across the map.
+ * Pick `count` random walkable tile positions for chests, spread across the map.
  * Avoids the player spawn area (centre 5×5) and border tiles.
  * Positions are well-separated (min ~6 tiles apart) so chests feel scattered.
  *
@@ -95,8 +119,8 @@ export const generateChestPositions = (
         const c = Math.floor(rng() * (cols - 4)) + 2;
         const r = Math.floor(rng() * (rows - 4)) + 2;
 
-        // Must be grass
-        if (map[r][c] !== 0) continue;
+        // Must be walkable terrain
+        if (map[r][c] === TILE_IDS.TREE || map[r][c] === TILE_IDS.ROCK) continue;
 
         // Avoid spawn area
         if (Math.abs(c - cx) < 4 && Math.abs(r - cy) < 4) continue;
@@ -134,7 +158,7 @@ export type StructurePlacement = {
 
 /**
  * Pick `count` random structures and place them on the map.
- * Structures are placed on grass tiles, avoiding:
+ * Structures are placed on walkable tiles, avoiding:
  * - Player spawn area (centre 7×7)
  * - Map borders
  * - Overlapping with each other
@@ -172,16 +196,17 @@ export const generateStructurePlacements = (
             if (Math.abs(c - cx) < 5 && Math.abs(r - cy) < 5) continue;
             if (Math.abs(c + config.width - cx) < 5 && Math.abs(r - cy) < 5) continue;
 
-            // Check all tiles in structure footprint are grass
-            let allGrass = true;
-            for (let dr = 0; dr < config.height && allGrass; dr++) {
-                for (let dc = 0; dc < config.width && allGrass; dc++) {
-                    if (map[r + dr]?.[c + dc] !== 0) {
-                        allGrass = false;
+            // Check all tiles in structure footprint are walkable
+            let allWalkable = true;
+            for (let dr = 0; dr < config.height && allWalkable; dr++) {
+                for (let dc = 0; dc < config.width && allWalkable; dc++) {
+                    const tile = map[r + dr]?.[c + dc];
+                    if (tile === TILE_IDS.TREE || tile === TILE_IDS.ROCK) {
+                        allWalkable = false;
                     }
                 }
             }
-            if (!allGrass) continue;
+            if (!allWalkable) continue;
 
             // Check no overlap with existing placements (min separation)
             const wx = c * TILE_SIZE;

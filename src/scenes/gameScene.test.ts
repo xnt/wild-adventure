@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Phaser from 'phaser';  // Mocked in setup
-import GameScene from './GameScene';
+import GameScene from './GameScene.js';
 
 describe('scenes/GameScene.ts', () => {
     let scene: GameScene;
@@ -21,6 +21,7 @@ describe('scenes/GameScene.ts', () => {
         expect(scene.playerHP).toBe(96);  // MAX_HP
         expect(scene.gameOver).toBe(false);
         expect(scene.victory).toBe(false);
+        expect(scene.totalEnemies).toBe(7);
     });
 
     it('create sets up world/player/enemies/UI (mocks Phaser calls)', () => {
@@ -127,6 +128,24 @@ describe('scenes/GameScene.ts', () => {
         expect(killSpy).toHaveBeenCalledWith(mockEnemy);
     });
 
+    it('_damageEnemy splits gel when depleted', () => {
+        const mockEnemy = {
+            hp: 1,
+            type: 'gel',
+            isDying: false,
+            setTint: vi.fn(),
+            clearTint: vi.fn(),
+            active: true,
+            body: { enable: true },
+        } as any;
+        const splitSpy = vi.spyOn(scene as any, '_splitGel').mockImplementation(() => {});
+
+        scene._damageEnemy(mockEnemy);
+
+        expect(mockEnemy.hp).toBe(0);
+        expect(splitSpy).toHaveBeenCalledWith(mockEnemy);
+    });
+
     it('_damageEnemy does not kill when HP remains', () => {
         const mockEnemy = {
             hp: 3,  // Lynel
@@ -176,6 +195,42 @@ describe('scenes/GameScene.ts', () => {
         expect(damageSpy).toHaveBeenCalledWith(mockEnemy);
     });
 
+    it('_onPlayerHit damages player when touching gel', () => {
+        scene.init();
+        const mockEnemy = { isDying: false, type: 'gel', x: 10, y: 10 } as any;
+        const damageSpy = vi.spyOn(scene as any, '_damagePlayer').mockImplementation(() => {});
+
+        scene._onPlayerHit({} as any, mockEnemy);
+
+        expect(damageSpy).toHaveBeenCalledWith(mockEnemy);
+    });
+
+    it('_splitGel spawns two smaller gels and increments total count', () => {
+        scene.init();
+        scene.enemies = { add: vi.fn() } as any;
+        const spriteSpy = vi.spyOn(scene.physics.add, 'sprite').mockImplementation(() => ({
+            setDepth: vi.fn().mockReturnThis(),
+            setCollideWorldBounds: vi.fn().mockReturnThis(),
+            setScale: vi.fn().mockReturnThis(),
+            body: { setSize: vi.fn().mockReturnThis(), setOffset: vi.fn().mockReturnThis() },
+        }) as any);
+
+        const mockEnemy = {
+            x: 10,
+            y: 10,
+            isDying: false,
+            body: { enable: true },
+            destroy: vi.fn(),
+        } as any;
+
+        scene._splitGel(mockEnemy);
+
+        expect(spriteSpy).toHaveBeenCalledTimes(2);
+        expect(scene.enemies.add).toHaveBeenCalledTimes(2);
+        expect(scene.totalEnemies).toBe(8);
+        expect(mockEnemy.destroy).toHaveBeenCalled();
+    });
+
     it('_onPlayerHitByProj calls _damagePlayer and destroys projectile', () => {
         const mockProj = { x: 10, y: 10, destroy: vi.fn() } as any;
         const damageSpy = vi.spyOn(scene as any, '_damagePlayer').mockImplementation(() => {});
@@ -194,9 +249,13 @@ describe('scenes/GameScene.ts', () => {
         scene.preload();
         expect(scene.load.spritesheet).toHaveBeenCalledWith('player', 'player_sheet.png', expect.any(Object));
         expect(scene.load.image).toHaveBeenCalledWith('grass', 'grass.png');
+        expect(scene.load.image).toHaveBeenCalledWith('forest', 'forest.png');
+        expect(scene.load.image).toHaveBeenCalledWith('swamp', 'swamp.png');
+        expect(scene.load.image).toHaveBeenCalledWith('snow', 'snow.png');
         expect(scene.load.image).toHaveBeenCalledWith('goblin', 'goblin.png');
         expect(scene.load.image).toHaveBeenCalledWith('wizrobe', 'wizrobe.png');
         expect(scene.load.image).toHaveBeenCalledWith('lynel', 'lynel.png');
+        expect(scene.load.image).toHaveBeenCalledWith('gel', 'gel.png');
         expect(scene.load.image).toHaveBeenCalledWith('chest_closed', 'chest_closed.png');
         expect(scene.load.image).toHaveBeenCalledWith('compass', 'compass.png');
         expect(scene.load.image).toHaveBeenCalledWith('pyramid', 'pyramid.png');
@@ -332,7 +391,7 @@ describe('scenes/GameScene.ts', () => {
 
     it('_updateUI triggers victory when all enemies killed', () => {
         scene.init();
-        scene.enemiesKilled = 5;  // NUM_ENEMIES
+        scene.enemiesKilled = 7;  // NUM_ENEMIES
         scene.heartSprites = [{ setTexture: vi.fn() }] as any;
         scene.enemyText = { setText: vi.fn() } as any;
         scene.triforceHudSprites = [];

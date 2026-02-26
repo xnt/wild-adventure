@@ -5,14 +5,15 @@
 // Types reused/adapted from GameScene (intersection for Phaser compat).
 
 import Phaser from 'phaser';
-import type { PositionedObject, GameEnemy, Facing, TouchDir, EnemyConfig } from './types';
+import type { PositionedObject, GameEnemy, Facing, TouchDir, EnemyConfig } from './types.js';
 // Constants for enemy AI/math/attack/player.
 import {
     ENEMY_SPEED, CHASE_RANGE, MAP_COLS, MAP_ROWS, TILE_SIZE,
     PLAYER_SPEED, ATTACK_RANGE, IFRAMES_DUR, ATTACK_CD,
     MAX_HP, HEART_HP, NUM_ENEMIES,
     ENEMY_CONFIGS,  // For createEnemies variety config.
-} from './constants';
+    TILE_IDS,
+} from './constants.js';
 
 /**
  * Creates slash particle effect (pure visual math/animation).
@@ -178,8 +179,12 @@ export const updateEnemy = (
 
     // Subtle bob animation for all enemy types
     // Lynel base scale=1.2 (from config) for consistent visual + hitbox
+    // Gel variants use smaller scales.
     // (prevents scale/body mismatch that could affect sword overlaps)
-    const baseScale = (enemy.type === 'lynel') ? 1.2 : 1;
+    let baseScale = 1;
+    if (enemy.type === 'lynel') baseScale = 1.2;
+    if (enemy.type === 'gel') baseScale = 0.7;
+    if (enemy.type === 'gel_small') baseScale = 0.5;
     enemy.setScale(baseScale + Math.sin(time * 0.005 + enemy.x) * 0.05);
 
     return shouldShoot;
@@ -219,8 +224,8 @@ export const createEnemies = (
 ): GameEnemy[] => {
     const enemies: GameEnemy[] = [];
     // Heart/proj groups handled in scene (_createEnemies).
-    // Type cycle guarantees variety (Wizrobe/Lynel for NUM_ENEMIES=5).
-    const typeCycle = ['goblin', 'wizrobe', 'lynel', 'goblin', 'wizrobe'];
+    // Type cycle guarantees variety: 2 goblins, 2 wizrobes, 2 gels, 1 lynel (NUM_ENEMIES=7).
+    const typeCycle = ['goblin', 'wizrobe', 'gel', 'goblin', 'wizrobe', 'gel', 'lynel'];
 
     let spawned = 0;
     let attempts = 0;
@@ -252,6 +257,14 @@ export const createEnemies = (
         if (config.scale) {
             enemy.setScale(config.scale);
             enemy.body!.setSize(26, 26).setOffset(3, 3);
+        }
+
+        if (enemyType === 'gel') {
+            enemy.body!.setSize(18, 14).setOffset(7, 12);
+        }
+
+        if (enemyType === 'gel_small') {
+            enemy.body!.setSize(14, 10).setOffset(9, 14);
         }
 
         // Type-specific props.
@@ -290,12 +303,31 @@ export const buildTilemap = (
     mapCols: number,
     mapRows: number,
 ): Phaser.Physics.Arcade.StaticGroup => {
-    // Ground — full-map tileSprite of grass (render; stays in scene call site).
+    // Base ground layer (plains)
     scene.add.tileSprite(
         0, 0,
         mapCols * tileSize, mapRows * tileSize,
         'grass',
     ).setOrigin(0, 0).setDepth(0);
+
+    const biomeTextures: Record<number, string> = {
+        [TILE_IDS.FOREST]: 'forest',
+        [TILE_IDS.SWAMP]: 'swamp',
+        [TILE_IDS.SNOW]: 'snow',
+    };
+
+    // Biome overlays
+    for (let r = 0; r < mapRows; r++) {
+        for (let c = 0; c < mapCols; c++) {
+            const tile = mapData[r][c];
+            const texture = biomeTextures[tile];
+            if (!texture) continue;
+
+            const tx = c * tileSize + tileSize / 2;
+            const ty = r * tileSize + tileSize / 2;
+            scene.add.image(tx, ty, texture).setDepth(0.5);
+        }
+    }
 
     // Obstacles — static physics group of trees & rocks
     const obstacleLayer = scene.physics.add.staticGroup();
@@ -304,11 +336,11 @@ export const buildTilemap = (
         for (let c = 0; c < mapCols; c++) {
             const tile = mapData[r][c];
             // Pure check: tree=1, rock=2.
-            if (tile !== 1 && tile !== 2) continue;
+            if (tile !== TILE_IDS.TREE && tile !== TILE_IDS.ROCK) continue;
 
             const tx  = c * tileSize + tileSize / 2;
             const ty  = r * tileSize + tileSize / 2;
-            const key = tile === 1 ? 'tree' : 'rock';
+            const key = tile === TILE_IDS.TREE ? 'tree' : 'rock';
             const obs = obstacleLayer.create(tx, ty, key);
             obs.setDepth(1);
             obs.refreshBody();

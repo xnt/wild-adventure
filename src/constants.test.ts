@@ -2,7 +2,7 @@
 // Simple const/typing checks; e.g., FRAMES structure.
 
 import { describe, it, expect } from 'vitest';
-import { FRAMES } from './constants';
+import { FRAMES } from './constants.js';
 
 describe('constants.ts', () => {
   it('FRAMES as const has expected structure and immutability', () => {

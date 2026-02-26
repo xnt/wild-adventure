@@ -65,6 +65,19 @@ export const generateEnemyFallbacks = (scene: Phaser.Scene, g: Phaser.GameObject
         g.generateTexture('lynel', 32, 32);
     }
 
+    // ---- Gel (small gelatinous blob) ----
+    if (!scene.textures.exists('gel')) {
+        g.clear();
+        g.fillStyle(0x4cc7ff);
+        g.fillEllipse(16, 20, 20, 16);
+        g.fillStyle(0x7dd9ff);
+        g.fillEllipse(16, 18, 12, 8);
+        g.fillStyle(0x1a6a88);
+        g.fillCircle(12, 18, 2);
+        g.fillCircle(20, 18, 2);
+        g.generateTexture('gel', 32, 32);
+    }
+
     // ---- Enemy projectile (slow magic orb from Wizrobe) ----
     if (!scene.textures.exists('enemy_proj')) {
         g.clear();

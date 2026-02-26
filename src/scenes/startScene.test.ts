@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Phaser from 'phaser';  // Mocked in setup
-import StartScene from './StartScene';
+import StartScene from './StartScene.js';
 
 describe('scenes/StartScene.ts', () => {
     let scene: StartScene;
@@ -23,9 +23,14 @@ describe('scenes/StartScene.ts', () => {
         expect(() => scene.preload()).not.toThrow();
         expect(scene.load.spritesheet).toHaveBeenCalledWith('player', 'player_sheet.png', expect.any(Object));
         expect(scene.load.image).toHaveBeenCalledWith('grass', 'grass.png');
+        expect(scene.load.image).toHaveBeenCalledWith('forest', 'forest.png');
+        expect(scene.load.image).toHaveBeenCalledWith('swamp', 'swamp.png');
+        expect(scene.load.image).toHaveBeenCalledWith('snow', 'snow.png');
         expect(scene.load.image).toHaveBeenCalledWith('goblin', 'goblin.png');
+        expect(scene.load.image).toHaveBeenCalledWith('gel', 'gel.png');
         expect(scene.load.image).toHaveBeenCalledWith('chest_closed', 'chest_closed.png');
         expect(scene.load.image).toHaveBeenCalledWith('compass', 'compass.png');
+        expect(scene.load.image).toHaveBeenCalledWith('pyramid', 'pyramid.png');
     });
 
     it('create builds title screen UI without errors', () => {
