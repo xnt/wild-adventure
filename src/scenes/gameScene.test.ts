@@ -20,17 +20,14 @@ describe('scenes/GameScene.ts', () => {
     });
 
     it('create sets up world and initializes systems', () => {
-        const buildTilemapSpy = vi.spyOn(scene as any, '_buildTilemap');
-        const createStructuresSpy = vi.spyOn(scene as any, '_createStructures');
         const initSystemsSpy = vi.spyOn(scene as any, '_initSystems');
-        const setupTouchSpy = vi.spyOn(scene as any, '_setupTouchControls');
 
         scene.create();
 
-        expect(buildTilemapSpy).toHaveBeenCalled();
-        expect(createStructuresSpy).toHaveBeenCalled();
+        expect(scene.worldFactory).toBeDefined();
+        expect(scene.worldData).toBeDefined();
+        expect(scene.obstacleLayer).toBeDefined();
         expect(initSystemsSpy).toHaveBeenCalled();
-        expect(setupTouchSpy).toHaveBeenCalled();
     });
 
     it('update handles restart when game over', () => {
@@ -55,6 +52,9 @@ describe('scenes/GameScene.ts', () => {
 
     it('_initSystems creates all game systems', () => {
         scene.obstacleLayer = {} as any;
+        scene.worldFactory = {
+            getValidSpawn: vi.fn().mockReturnValue({ x: 100, y: 100 }),
+        } as any;
         
         scene._initSystems();
         
@@ -62,7 +62,7 @@ describe('scenes/GameScene.ts', () => {
         expect(scene.enemySystem).toBeDefined();
         expect(scene.combatSystem).toBeDefined();
         expect(scene.uiSystem).toBeDefined();
-        expect(scene.collectiblesSystem).toBeDefined();
+        expect(scene.collectibleSystem).toBeDefined();
     });
 
     it('_showGameOver sets state and shows UI', () => {
@@ -112,7 +112,7 @@ describe('scenes/GameScene.ts', () => {
         scene.init();
         scene.playerController = { getHP: vi.fn().mockReturnValue(96), getPosition: vi.fn().mockReturnValue({ x: 0, y: 0 }) } as any;
         scene.enemySystem = { getRemaining: vi.fn().mockReturnValue(5), getLivingEnemies: vi.fn().mockReturnValue([]) } as any;
-        scene.collectiblesSystem = { getHasCompass: vi.fn().mockReturnValue(false) } as any;
+        scene.collectibleSystem = { getHasCompass: vi.fn().mockReturnValue(false) } as any;
         scene.uiSystem = { 
             updateHearts: vi.fn(), 
             updateEnemyCounter: vi.fn(),
@@ -128,7 +128,7 @@ describe('scenes/GameScene.ts', () => {
         scene.init();
         scene.playerController = { getHP: vi.fn().mockReturnValue(96), getPosition: vi.fn().mockReturnValue({ x: 0, y: 0 }), stop: vi.fn() } as any;
         scene.enemySystem = { getRemaining: vi.fn().mockReturnValue(0), getLivingEnemies: vi.fn().mockReturnValue([]) } as any;
-        scene.collectiblesSystem = { getHasCompass: vi.fn().mockReturnValue(false) } as any;
+        scene.collectibleSystem = { getHasCompass: vi.fn().mockReturnValue(false) } as any;
         scene.uiSystem = { 
             updateHearts: vi.fn(), 
             updateEnemyCounter: vi.fn(),
@@ -139,15 +139,6 @@ describe('scenes/GameScene.ts', () => {
 
         expect(scene.victory).toBe(true);
         expect(scene.uiSystem.showVictory).toHaveBeenCalled();
-    });
-
-    it('_buildTilemap creates obstacle layer', () => {
-        scene._buildTilemap();
-        expect(scene.obstacleLayer).toBeDefined();
-    });
-
-    it('_createStructures places decorative structures', () => {
-        expect(() => scene._createStructures()).not.toThrow();
     });
 
     it('preload loads all required assets', () => {

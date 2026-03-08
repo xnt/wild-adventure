@@ -5,8 +5,9 @@ import {
     ENEMY_CONFIGS,
 } from '../constants.js';
 import type { GameEnemy, PositionedObject } from '../types.js';
+import { WorldFactory } from '../worldFactory.js';
+import { CollectibleSystem } from './collectiblesSystem.js';
 import {
-    createEnemies,
     updateEnemies,
     createDeathEffect,
     calcProjectileParams,
@@ -21,9 +22,9 @@ import {
 export class EnemySystem {
     scene: Phaser.Scene;
     enemies!: Phaser.Physics.Arcade.Group;
-    heartDrops!: Phaser.Physics.Arcade.Group;
     enemyProjectiles!: Phaser.Physics.Arcade.Group;
     obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
+    collectibleSystem!: CollectibleSystem;
 
     // State
     enemiesKilled = 0;
@@ -43,10 +44,10 @@ export class EnemySystem {
     /**
      * Initialize groups. Call from scene's create().
      */
-    init(obstacleLayer: Phaser.Physics.Arcade.StaticGroup): void {
+    init(obstacleLayer: Phaser.Physics.Arcade.StaticGroup, collectibleSystem: CollectibleSystem): void {
         this.obstacleLayer = obstacleLayer;
+        this.collectibleSystem = collectibleSystem;
         this.enemies = this.scene.physics.add.group();
-        this.heartDrops = this.scene.physics.add.group();
         this.enemyProjectiles = this.scene.physics.add.group();
 
         // Projectiles collide with obstacles
@@ -62,18 +63,58 @@ export class EnemySystem {
     /**
      * Create enemies at valid spawn positions.
      */
-    createEnemies(mapData: number[][], playerX: number, playerY: number): void {
+    createEnemies(worldFactory: WorldFactory, mapData: number[][], playerX: number, playerY: number): void {
         this.mapData = mapData;
         this.playerPos = { x: playerX, y: playerY };
 
-        const enemyList = createEnemies(
-            this.scene,
-            this.totalEnemies,
-            mapData,
-            this.playerPos,
-        );
+        const typeCycle = ['goblin', 'wizrobe', 'gel', 'goblin', 'wizrobe', 'gel', 'lynel'];
+        let spawned = 0;
+        let attempts = 0;
 
-        enemyList.forEach((enemy) => this.enemies.add(enemy));
+        while (spawned < this.totalEnemies && attempts < 500) {
+            attempts++;
+
+            const spawn = worldFactory.getValidSpawn(mapData, this.playerPos);
+            if (!spawn) continue;
+
+            const { x, y } = spawn;
+            const enemyType = typeCycle[spawned];
+            const config = ENEMY_CONFIGS[enemyType];
+
+            const enemy = this.scene.physics.add.sprite(x, y, config.texture) as GameEnemy;
+            enemy.setDepth(4).setCollideWorldBounds(true);
+            enemy.body!.setSize(22, 22).setOffset(5, 5);
+
+            if (config.scale) {
+                enemy.setScale(config.scale);
+                enemy.body!.setSize(26, 26).setOffset(3, 3);
+            }
+
+            if (enemyType === 'gel') {
+                enemy.body!.setSize(18, 14).setOffset(7, 12);
+            }
+
+            if (enemyType === 'gel_small') {
+                enemy.body!.setSize(14, 10).setOffset(9, 14);
+            }
+
+            enemy.type         = enemyType;
+            enemy.hp           = config.hp;
+            enemy.speedMult    = config.speedMult;
+            enemy.shoots       = config.shoots;
+            if (config.shoots) {
+                enemy.projSpeed    = config.projSpeed;
+                enemy.shootCd      = config.shootCd;
+                enemy.lastShotTime = Phaser.Math.Between(0, config.shootCd ?? 2500);
+            }
+            enemy.patrolTarget = new Phaser.Math.Vector2(x, y);
+            enemy.patrolTimer  = 0;
+            enemy.isChasing    = false;
+            enemy.isDying      = false;
+
+            this.enemies.add(enemy);
+            spawned++;
+        }
     }
 
     /**
@@ -197,20 +238,7 @@ export class EnemySystem {
             scaleY: 1.5,
             duration: 300,
             onComplete: () => {
-                const heart = this.scene.physics.add.sprite(enemy.x, enemy.y, 'heart_drop')
-                    .setDepth(3)
-                    .setScale(1.2);
-                this.heartDrops.add(heart);
-
-                this.scene.tweens.add({
-                    targets: heart,
-                    y: heart.y - 8,
-                    duration: 500,
-                    yoyo: true,
-                    repeat: -1,
-                    ease: 'Sine.easeInOut',
-                });
-
+                this.collectibleSystem.spawnCollectible(enemy.x, enemy.y, 'heart');
                 enemy.destroy();
                 this.onEnemyKilled?.();
             },
@@ -266,13 +294,6 @@ export class EnemySystem {
         return (this.enemies.getChildren() as GameEnemy[]).filter(
             (e) => e.active && !e.isDying,
         );
-    }
-
-    /**
-     * Get heart drops group (for pickup collision).
-     */
-    getHeartDrops(): Phaser.Physics.Arcade.Group {
-        return this.heartDrops;
     }
 
     /**

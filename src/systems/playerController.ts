@@ -4,7 +4,7 @@ import {
     IFRAMES_DUR,
     ENEMY_DMG,
 } from '../constants.js';
-import type { TouchDir, Facing } from '../types.js';
+import type { Facing, PlayerIntent } from '../types.js';
 import {
     getFacingFromVelocity,
     calcNormalizedVelocity,
@@ -17,27 +17,17 @@ import {
  * PlayerController — handles player movement, facing, animation selection,
  * and damage/knockback state.
  *
- * Decoupled from GameScene; receives refs to player, input keys, and state.
+ * Decoupled from input; receives PlayerIntent from input sources.
  */
 export class PlayerController {
     scene: Phaser.Scene;
     player!: Phaser.Physics.Arcade.Sprite;
-    cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    wasd!: {
-        up: Phaser.Input.Keyboard.Key;
-        down: Phaser.Input.Keyboard.Key;
-        left: Phaser.Input.Keyboard.Key;
-        right: Phaser.Input.Keyboard.Key;
-    };
-    spaceKey!: Phaser.Input.Keyboard.Key;
 
     // State
     facing: Facing = 'down';
     isAttacking = false;
     lastHitTime = 0;
     playerHP = 0;
-    touchDir: TouchDir = { x: 0, y: 0 };
-    touchAttack = false;
 
     // Callbacks for external integration
     onDamage?: (hp: number) => void;
@@ -45,28 +35,6 @@ export class PlayerController {
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
-    }
-
-    /**
-     * Initialize input keys. Call from scene's create().
-     */
-    initInput(): void {
-        // @ts-expect-error Phaser input APIs have loose TS defs
-        this.cursors = this.scene.input.keyboard.createCursorKeys()!;
-        // @ts-expect-error Phaser addKeys interop
-        this.wasd = this.scene.input.keyboard.addKeys({
-            up: Phaser.Input.Keyboard.KeyCodes.W,
-            down: Phaser.Input.Keyboard.KeyCodes.S,
-            left: Phaser.Input.Keyboard.KeyCodes.A,
-            right: Phaser.Input.Keyboard.KeyCodes.D,
-        }) as {
-            up: Phaser.Input.Keyboard.Key;
-            down: Phaser.Input.Keyboard.Key;
-            left: Phaser.Input.Keyboard.Key;
-            right: Phaser.Input.Keyboard.Key;
-        };
-        // @ts-expect-error Phaser addKey interop
-        this.spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)!;
     }
 
     /**
@@ -127,30 +95,15 @@ export class PlayerController {
     }
 
     /**
-     * Update movement, facing, and animation.
+     * Update movement, facing, and animation based on PlayerIntent.
      * Returns true if player is moving.
      */
-    update(time: number): boolean {
+    update(time: number, intent: PlayerIntent): boolean {
         if (this.isAttacking) return false;
 
-        // Read input
-        const left = this.cursors.left!.isDown || this.wasd.left.isDown;
-        const right = this.cursors.right!.isDown || this.wasd.right.isDown;
-        const up = this.cursors.up!.isDown || this.wasd.up.isDown;
-        const down = this.cursors.down!.isDown || this.wasd.down.isDown;
-
-        let vx = 0;
-        let vy = 0;
-        if (left) vx -= 1;
-        if (right) vx += 1;
-        if (up) vy -= 1;
-        if (down) vy += 1;
-
-        // Touch fallback
-        if (vx === 0 && vy === 0) {
-            vx = this.touchDir.x;
-            vy = this.touchDir.y;
-        }
+        // Use intent directly
+        let vx = intent.moveX;
+        let vy = intent.moveY;
 
         // Normalize velocity
         const normVel = calcNormalizedVelocity(vx, vy, PLAYER_SPEED);
@@ -226,30 +179,6 @@ export class PlayerController {
      */
     getFacing(): Facing {
         return this.facing;
-    }
-
-    /**
-     * Set touch input direction (from touch controls).
-     */
-    setTouchDir(x: number, y: number): void {
-        this.touchDir.x = x;
-        this.touchDir.y = y;
-    }
-
-    /**
-     * Set touch attack flag.
-     */
-    setTouchAttack(attack: boolean): void {
-        this.touchAttack = attack;
-    }
-
-    /**
-     * Get touch attack flag and clear it.
-     */
-    consumeTouchAttack(): boolean {
-        const wasAttack = this.touchAttack;
-        this.touchAttack = false;
-        return wasAttack;
     }
 
     /**

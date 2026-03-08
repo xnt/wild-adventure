@@ -2,50 +2,85 @@
 
 This file helps AI assistants (and humans) understand the project and make consistent changes.
 
-## Stack & entry points
+## Stack & Entry Points
 
-- **Runtime**: Phaser 4 RC (arcade physics), no game framework beyond that. (See PHASER4_MIGRATION.md for details.)
+- **Runtime**: Phaser 4 RC (arcade physics). See [PHASER4_MIGRATION.md](PHASER4_MIGRATION.md).
 - **Build**: Vite. ES modules throughout; no CommonJS.
-- **Entry**: `index.html` → `/src/main.ts` → `new Phaser.Game(config)` with scenes: `StartScene` (title) → `GameScene` (gameplay).
+- **Entry**: `index.html` → `/src/main.ts` → `new Phaser.Game(config)`
+- **Scenes**: `StartScene` (title) → `GameScene` (gameplay)
 
-**Run**: `npm install` then `npm run dev` (dev server) or `npm run build` + `npm run preview` (production).
+**Run**: `npm install` then `npm run dev` (dev) or `npm run build` + `npm run preview` (prod).
 
-## Code layout
+## Architecture
+
+GameScene orchestrates decoupled systems. No global state; scene resets in `init()`.
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ InputSource │────▶│ PlayerController │────▶│ CombatSystem    │
+└─────────────┘     └──────────────────┘     └─────────────────┘
+       │                    │                        │
+       ▼                    ▼                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       GameScene                              │
+│  (orchestrates: WorldFactory, EnemySystem, UISystem,        │
+│   CollectibleSystem, InputSource)                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Code Layout
 
 | Path | Role |
 |------|------|
-| `src/main.ts` | Phaser config only (canvas size, scale, physics, scene list). Add new scenes here. |
-| `src/constants.ts` | All tunable numbers (speeds, HP, ranges, cooldowns), chest contents (`CHEST_CONTENTS` for triforce pieces and compass), and the player spritesheet frame map (`FRAMES`). Change gameplay balance or sprite layout here. |
-| `src/map.ts` | Procedural 50×50 tilemap. Exports `generateMap()` and `mapData`. Tile types: 0 grass, 1 tree, 2 rock. |
-| `src/fallbacks/` | Programmatic texture generation when PNGs are missing. Split into modules: `tileFallbacks.ts` (grass/tree/rock), `enemyFallbacks.ts` (goblin/wizrobe/lynel/proj), `uiFallbacks.ts` (hearts/chests/triforce/compass), `structureFallbacks.ts` (decorative landmarks), `playerFallback.ts` (player spritesheet). Main entry: `index.ts` exports `generateFallbacks(scene)`. |
-| `src/systems/` | Decoupled game systems orchestrated by GameScene: `playerController.ts` (movement/animation/damage), `combatSystem.ts` (attack timing/sword hitboxes), `enemySystem.ts` (spawning/AI/projectiles), `uiSystem.ts` (HUD/overlays/flash text), `collectiblesSystem.ts` (chests/triforce/compass). |
-| `src/gameSceneUtils.ts` | Extracted pure helpers (movement calcs, attack offsets, enemy spawn/AI, UI state) for testability/readability. Used by systems. |
-| `src/scenes/GameScene.ts` | Main game scene: orchestrates systems via `init()`, `create()`, `update()`. No direct game logic—delegates to systems. |
-| `src/scenes/StartScene.ts` | Title/loading screen shown before the game begins. Teaches controls and mechanics. |
-| `src/types.ts` | Shared types (GameEnemy, Facing, etc.) for DRY/TS safety. |
-| `public/` | Static assets. Vite serves these at `/`. Game loads e.g. `grass.png` from root, so files go in `public/` (e.g. `public/grass.png`). |
+| `src/main.ts` | Phaser config (canvas, scale, physics, scene list) |
+| `src/constants.ts` | Gameplay constants, chest contents, sprite frame map |
+| `src/types.ts` | Shared types: `GameEnemy`, `PlayerIntent`, `InputSource`, `CollectibleType` |
+| `src/worldFactory.ts` | World generation: terrain, chests, structures, obstacles |
+| `src/map.ts` | Procedural 50×50 tilemap generator |
+| `src/systems/` | Decoupled game systems (see below) |
+| `src/gameSceneUtils.ts` | Pure helpers for testability |
+| `src/fallbacks/` | Programmatic textures when PNGs missing |
+| `src/scenes/` | Phaser scenes: `GameScene.ts`, `StartScene.ts` |
 
-There is no state management beyond Phaser scenes; no Redux, no global store. Scene state is reset in `GameScene.init()` on restart. See PHASER4_MIGRATION.md for v4 specifics.
+## Systems (`src/systems/`)
+
+| System | Responsibility |
+|--------|----------------|
+| `PlayerController` | Movement, facing, animation, damage, HP |
+| `CombatSystem` | Attack timing, sword hitbox, cooldowns |
+| `EnemySystem` | Spawning, AI, projectiles, drops |
+| `UISystem` | HUD hearts, enemy counter, overlays |
+| `CollectibleSystem` | Unified pickup pipeline (hearts, triforce, compass) |
+| `InputSource` classes | Device-agnostic input (keyboard, touch) |
+
+## Skills (Detailed Guides)
+
+For implementation details, see the skill files in `.grok/skills/`:
+
+- **[phaser-patterns.md](.grok/skills/phaser-patterns.md)**: Physics, camera, animations, spritesheets
+- **[systems-architecture.md](.grok/skills/systems-architecture.md)**: System pattern, adding new systems
+- **[input-system.md](.grok/skills/input-system.md)**: PlayerIntent, InputSource, adding gamepad
+- **[collectibles.md](.grok/skills/collectibles.md)**: Unified pickup pipeline, adding new items
+- **[world-factory.md](.grok/skills/world-factory.md)**: World generation, spawn queries
+- **[testing.md](.grok/skills/testing.md)**: Test patterns, mocking Phaser
 
 ## Conventions
 
-- **Imports**: Use explicit `.js` in relative imports for ESM/TS (e.g. `from './constants.js'`); Vite/TS handles extensionless internally but explicit avoids resolver issues.
-- **New scenes**: Create under `src/scenes/`, add to the `scene: [...]` array in `main.ts`.
-- **New assets**: Load in the scene’s `preload()`. If the asset is optional, ensure a fallback exists in `fallbacks/` (keyed by the same string). List new PNGs in `README.md`.
-- **Gameplay constants**: Prefer adding and tweaking values in `constants.ts` rather than magic numbers in the scene.
-- **Style**: Existing code uses trailing commas, single quotes, arrow funcs for pure logic, and short comments where helpful. Match that style in new code. See PHASER4_MIGRATION.md for v4 notes.
+- **Imports**: Use explicit `.js` in relative imports (e.g., `from './constants.js'`)
+- **New scenes**: Create in `src/scenes/`, add to `main.ts` scene list
+- **New assets**: Load in `preload()`, add fallback in `fallbacks/`, list in `README.md`
+- **Gameplay constants**: Add to `constants.ts`, not magic numbers
+- **Style**: Trailing commas, single quotes, arrow funcs for pure logic
 
-## Phaser-specific
+## Testing
 
-- **Physics**: Arcade only. No matter, no complex bodies. Use `this.physics.add.collider`, `overlap`, and velocity/position. (Phaser 4 RC compatible; see migration doc.)
-- **Camera**: Main camera follows the player with `startFollow(player, true, 0.15, 0.15)`. Bounds are set from map dimensions in `constants.ts` (e.g. `MAP_COLS * TILE_SIZE`).
-- **Animations**: Created once in `PlayerController.createAnimations()`; guarded with `if (!this.scene.anims.exists('idle_up'))` so restarts don't duplicate. Animation keys follow `idle_*`, `walk_*`, `attack_*` with direction suffix (`up`, `down`, `left`, `right`).
-- **Spritesheet**: Player is a 512×512 sheet, 32×32 frames, 16 columns. Frame indices are in `constants.ts` as `FRAMES`; the fallback in `fallbacks/` draws a canvas in the same layout. (Shapes/rects preferred over PNGs; see migration for v4 rendering.)
+```bash
+npm test            # Watch mode
+npm run test:run    # CI run
+```
 
-## Testing changes
+## Documentation
 
-- npm run test
-
-## README
-
-User-facing docs (controls, setup, assets, gameplay) live in `README.md`. Keep `AGENTS.md` focused on implementation and where to change things.
+- `README.md` — User-facing (controls, setup, gameplay)
+- `AGENTS.md` — Implementation guide (this file)
+- `.grok/skills/` — Detailed skill guides for specific areas

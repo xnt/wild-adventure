@@ -106,7 +106,7 @@ export const calcKnockbackVelocity = (
 // Add more pure helpers here in iteration (e.g., getFacingFromVelocity).
 
 /**
- * Updates a single enemy (AI: chase/patrol/shoot/bob).
+ * Updates all enemies (delegates to updateEnemy).
  * Extracted from _updateEnemies forEach for testability (pure calc per enemy).
  * Takes player/time for context; mutates enemy.
  */
@@ -207,152 +207,6 @@ export const updateEnemies = (
         if (shouldShoot) shooters.push(enemy);
     });
     return shooters;
-};
-
-/**
- * Creates enemies with variety/spawn logic.
- * Extracted from _createEnemies for testability/readability.
- * Pure spawn pos/config calc via getValidEnemySpawn; Phaser add delegated (keeps side minimal).
- * Ensures variety (typeCycle for Goblin/Wizrobe/Lynel); returns array for scene group add.
- * (Behavior identical; tests cover spawn validity/enemy props.)
- */
-export const createEnemies = (
-    scene: Phaser.Scene,
-    numEnemies: number,
-    mapData: number[][],
-    playerPos: PositionedObject,
-): GameEnemy[] => {
-    const enemies: GameEnemy[] = [];
-    // Heart/proj groups handled in scene (_createEnemies).
-    // Type cycle guarantees variety: 2 goblins, 2 wizrobes, 2 gels, 1 lynel (NUM_ENEMIES=7).
-    const typeCycle = ['goblin', 'wizrobe', 'gel', 'goblin', 'wizrobe', 'gel', 'lynel'];
-
-    let spawned = 0;
-    let attempts = 0;
-    const px = playerPos.x;  // Use passed pos for pure-ish calc.
-    const py = playerPos.y;
-
-    while (spawned < numEnemies && attempts < 500) {
-        attempts++;
-
-        // Use pure getValidEnemySpawn for pos validity (obstacle/dist check).
-        // (rng default Math.random; injectable for tests.)
-        const spawn = getValidEnemySpawn(mapData, { x: px, y: py });
-        if (!spawn) continue;
-
-        const { ex, ey } = spawn;
-
-        // Select type for variety.
-        const enemyType = typeCycle[spawned];
-        const config: EnemyConfig = ENEMY_CONFIGS[enemyType];  // From const import.
-
-        // Delegate add to scene (physics/Phaser side); cast for GameEnemy.
-        const enemy = scene.physics.add.sprite(ex, ey, config.texture) as GameEnemy;
-
-        // Config enemy (scale, props; pure-ish).
-        enemy.setDepth(4).setCollideWorldBounds(true);
-        enemy.body!.setSize(22, 22).setOffset(5, 5);
-
-        // Lynel scale/hitbox.
-        if (config.scale) {
-            enemy.setScale(config.scale);
-            enemy.body!.setSize(26, 26).setOffset(3, 3);
-        }
-
-        if (enemyType === 'gel') {
-            enemy.body!.setSize(18, 14).setOffset(7, 12);
-        }
-
-        if (enemyType === 'gel_small') {
-            enemy.body!.setSize(14, 10).setOffset(9, 14);
-        }
-
-        // Type-specific props.
-        enemy.type         = enemyType;
-        enemy.hp           = config.hp;
-        enemy.speedMult    = config.speedMult;
-        enemy.shoots       = config.shoots;
-        if (config.shoots) {
-            enemy.projSpeed    = config.projSpeed;
-            enemy.shootCd      = config.shootCd;
-            enemy.lastShotTime = Phaser.Math.Between(0, config.shootCd ?? 2500);
-        }
-        enemy.patrolTarget = new Phaser.Math.Vector2(ex, ey);
-        enemy.patrolTimer  = 0;
-        enemy.isChasing    = false;
-        enemy.isDying      = false;
-
-        enemies.push(enemy);
-        spawned++;
-    }
-
-    return enemies;
-};
-
-/**
- * Builds tilemap/obstacles from mapData.
- * Extracted from _buildTilemap for testability/readability.
- * Pure tile check (isObstacle); delegates add/tileSprite + bounds set.
- * Returns obstacle group + sets world bounds; behavior identical.
- * (Tests cover tile loop/obs creation via mocks.)
- */
-export const buildTilemap = (
-    scene: Phaser.Scene,
-    mapData: number[][],
-    tileSize: number,
-    mapCols: number,
-    mapRows: number,
-): Phaser.Physics.Arcade.StaticGroup => {
-    // Base ground layer (plains)
-    scene.add.tileSprite(
-        0, 0,
-        mapCols * tileSize, mapRows * tileSize,
-        'grass',
-    ).setOrigin(0, 0).setDepth(0);
-
-    const biomeTextures: Record<number, string> = {
-        [TILE_IDS.FOREST]: 'forest',
-        [TILE_IDS.SWAMP]: 'swamp',
-        [TILE_IDS.SNOW]: 'snow',
-    };
-
-    // Biome overlays
-    for (let r = 0; r < mapRows; r++) {
-        for (let c = 0; c < mapCols; c++) {
-            const tile = mapData[r][c];
-            const texture = biomeTextures[tile];
-            if (!texture) continue;
-
-            const tx = c * tileSize + tileSize / 2;
-            const ty = r * tileSize + tileSize / 2;
-            scene.add.image(tx, ty, texture).setDepth(0.5);
-        }
-    }
-
-    // Obstacles — static physics group of trees & rocks
-    const obstacleLayer = scene.physics.add.staticGroup();
-
-    for (let r = 0; r < mapRows; r++) {
-        for (let c = 0; c < mapCols; c++) {
-            const tile = mapData[r][c];
-            // Pure check: tree=1, rock=2.
-            if (tile !== TILE_IDS.TREE && tile !== TILE_IDS.ROCK) continue;
-
-            const tx  = c * tileSize + tileSize / 2;
-            const ty  = r * tileSize + tileSize / 2;
-            const key = tile === TILE_IDS.TREE ? 'tree' : 'rock';
-            const obs = obstacleLayer.create(tx, ty, key);
-            obs.setDepth(1);
-            obs.refreshBody();
-            // body! : staticGroup items have body (non-null).
-            obs.body!.setSize(28, 28);
-            obs.body!.setOffset(2, 2);
-        }
-    }
-
-    // World bounds set (side-effect delegated).
-    scene.physics.world.setBounds(0, 0, mapCols * tileSize, mapRows * tileSize);
-    return obstacleLayer;
 };
 
 /**
@@ -463,33 +317,6 @@ export const getHeartTexture = (playerHP: number, i: number, maxHp: number, hear
  */
 export const getRemainingEnemies = (killed: number, total: number): number => {
     return total - killed;
-};
-
-/**
- * getValidEnemySpawn: pure rand pos gen + validity check (empty tile, away from player).
- * For createEnemies; deterministic testable (pass rng or fixed seed logic).
- * Returns null if no valid after attempts (rare).
- */
-export const getValidEnemySpawn = (
-    mapData: number[][],
-    playerPos: PositionedObject,
-    rng: () => number = Math.random,  // Inject for tests (avoid rand impl detail).
-): { ex: number; ey: number } | null => {
-    // Simplified; full loop in createEnemies; here core validity for cov/test.
-    // (Branches: obstacle skip, dist check, bounds safe for small test maps.)
-    const px = playerPos.x;
-    const py = playerPos.y;
-    // Example rand attempt (full in createEnemies); clamp for test maps (e.g., 2x2).
-    const rows = mapData.length;
-    const cols = mapData[0]?.length || 0;
-    const c = Math.floor(rng() * Math.max(0, cols - 4)) + 2;  // Avoid edges; safe small.
-    const r = Math.floor(rng() * Math.max(0, rows - 4)) + 2;
-    // Guard index.
-    if (r >= rows || c >= cols || mapData[r][c] !== 0) return null;  // Obstacle or oob.
-    const ex = c * TILE_SIZE + TILE_SIZE / 2;
-    const ey = r * TILE_SIZE + TILE_SIZE / 2;
-    if (Phaser.Math.Distance.Between(ex, ey, px, py) < 200) return null;
-    return { ex, ey };
 };
 
 // Add more pure helpers here in iteration (e.g., enemy AI branches).

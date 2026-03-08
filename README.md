@@ -67,11 +67,18 @@ wild-adventure/
 └── src/
     ├── main.ts             Phaser boot & game config
     ├── constants.ts        Tunable gameplay constants & sprite frame map
+    ├── types.ts            Shared TS types (GameEnemy, PlayerIntent, etc.)
     ├── map.ts              Procedural 50×50 tilemap generator
+    ├── worldFactory.ts     World generation (terrain, chests, structures)
     ├── fallbacks/          Auto-generated textures when PNGs are missing
-    ├── systems/            Decoupled game systems (player, combat, enemies, UI, collectibles)
+    ├── systems/            Decoupled game systems
+    │   ├── playerController.ts    Movement, animation, damage
+    │   ├── combatSystem.ts        Attack timing, sword hitbox
+    │   ├── enemySystem.ts         Spawning, AI, projectiles
+    │   ├── uiSystem.ts            HUD, overlays
+    │   ├── collectiblesSystem.ts  Unified pickup pipeline
+    │   └── inputSources.ts        Device-agnostic input (keyboard, touch)
     ├── gameSceneUtils.ts   Extracted non-UI utils (effects/AI/math)
-    ├── types.ts            Shared TS types (GameEnemy, etc.)
     ├── style.css           Minimal fullscreen styles
     └── scenes/
         ├── StartScene.ts   Title/loading screen

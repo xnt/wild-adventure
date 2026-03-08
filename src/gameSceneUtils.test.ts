@@ -20,9 +20,6 @@ import {
     calcIframesAlpha,
     getHeartTexture,
     getRemainingEnemies,
-    getValidEnemySpawn,
-    createEnemies,
-    buildTilemap,
     // updateEnemy: delegated in updateEnemies.
 } from './gameSceneUtils.js';
 import type { PositionedObject, GameEnemy } from './types.js';
@@ -159,52 +156,5 @@ describe('gameSceneUtils.ts (extracted pure logic)', () => {
         expect(getHeartTexture(96, 0, 96, 24)).toBe('heart_full');
         expect(getHeartTexture(20, 3, 96, 24)).toBe('heart_empty');
         expect(getRemainingEnemies(2, 5)).toBe(3);
-    });
-
-    it('getValidEnemySpawn returns pos or null (validity branches: tile/dist)', () => {
-        const mapData = [[0, 1], [0, 0]];  // Simple: empty, obs.
-        const player: PositionedObject = { x: 0, y: 0 };
-        // Fixed rng for det test (no impl rand).
-        const fixedRng = () => 0.1;  // Low -> c=2? but clamp; yields valid/obs.
-
-        const spawn = getValidEnemySpawn(mapData, player, fixedRng);
-        // Branch: may null (obs) or {ex,ey} (valid); behavior: filters invalid.
-        expect(spawn === null || (typeof spawn.ex === 'number')).toBe(true);
-    });
-
-    it('createEnemies and buildTilemap delegate full (behavior: variety/spawn/obs)', () => {
-        // Mock scene for add; verifies delegation + props (e.g., Lynel in list).
-        // (High-level; covers variety cycle, spawn valid, tile obs.)
-        const mockScene = {
-            physics: {
-                // world for setBounds in buildTilemap; add for groups/sprites.
-                world: { setBounds: vi.fn() },
-                add: {
-                    // Mock sprite matches GameEnemy + body! (non-null for setSize/offset in createEnemies).
-                    // (Full stub for type/branch cov; behavior: returns configured enemy.)
-                    sprite: vi.fn().mockImplementation((x, y, tex) => ({
-                        x, y, type: '', setDepth: vi.fn().mockReturnThis(), setCollideWorldBounds: vi.fn().mockReturnThis(),
-                        body: { setSize: vi.fn().mockReturnThis(), setOffset: vi.fn().mockReturnThis() }, setScale: vi.fn().mockReturnThis(),
-                        setTexture: vi.fn(),  // If called
-                    } as unknown as GameEnemy)),
-                    staticGroup: vi.fn().mockReturnValue({ create: vi.fn().mockReturnValue({ setDepth: vi.fn(), refreshBody: vi.fn(), body: { setSize: vi.fn(), setOffset: vi.fn() } }) }),
-                },
-            },
-            // tileSprite chain returnThis for setOrigin/setDepth in buildTilemap.
-            add: { tileSprite: vi.fn().mockReturnValue({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis() }) },
-        } as unknown as Phaser.Scene;
-        const mapData = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];  // All empty for spawn.
-        // Player far for dist>200 pass (rng default yields valid).
-        const player: PositionedObject = { x: 1000, y: 1000 };
-
-        const enemies = createEnemies(mockScene, 7, mapData, player);  // Guarantees variety (cycle).
-        expect(enemies.length).toBeGreaterThan(0);
-        expect(enemies.some(e => e.type === 'lynel')).toBe(true);  // Variety.
-        expect(enemies.some(e => e.type === 'gel')).toBe(true);
-        expect(enemies.some(e => e.type === 'gel_small')).toBe(false);
-
-        const obsLayer = buildTilemap(mockScene, mapData, 32, 3, 3);
-        expect(obsLayer).toBeDefined();  // Obs group + bounds.
-        expect(mockScene.add.tileSprite).toHaveBeenCalled();  // Ground.
     });
 });

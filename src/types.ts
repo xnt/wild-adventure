@@ -10,6 +10,34 @@ export interface TouchDir {
     y: number;
 }
 
+// --- Device-Agnostic Input System Types ---
+
+/**
+ * PlayerIntent represents the player's intended actions,
+ * abstracted away from specific input devices.
+ * This is the unified "input contract" that game systems consume.
+ */
+export interface PlayerIntent {
+    /** Normalized movement direction (-1 to 1 for each axis) */
+    moveX: number;
+    moveY: number;
+    /** Whether the player wants to attack */
+    attack: boolean;
+}
+
+/**
+ * InputSource is the interface for any device-specific input provider.
+ * Keyboard, touch, gamepad, etc. all implement this interface.
+ */
+export interface InputSource {
+    /** Returns the current player intent based on device state */
+    getIntent(): PlayerIntent;
+    /** Called each frame to update internal state (e.g., consume one-shot events) */
+    update(): void;
+    /** Clean up event listeners, etc. */
+    destroy(): void;
+}
+
 /** Intersection for augmented Phaser enemy sprites (custom props like hp/type). */
 export type GameEnemy = Phaser.Physics.Arcade.Sprite & {
     type: string;
@@ -37,6 +65,25 @@ export type PositionedObject = { x: number; y: number };
 
 /** Cardinal facing direction (snapped from velocity/input; used in anim/attack calcs). */
 export type Facing = 'up' | 'down' | 'left' | 'right';
+
+// --- Unified Collectible System Types ---
+
+export type CollectibleType = 'heart' | 'triforce_piece' | 'compass' | 'key' | 'potion';
+
+export interface CollectibleDefinition {
+    type: CollectibleType;
+    texture: string;
+    label: string;
+    onPickup?: (scene: any, collectible: GameCollectible) => void;
+}
+
+/** 
+ * Instance of a collectible in the world.
+ */
+export type GameCollectible = Phaser.Physics.Arcade.Sprite & {
+    collectibleType: CollectibleType;
+    data?: any;
+};
 
 // Re-export EnemyConfig and ChestContent from constants for convenience.
 export type { EnemyConfig, ChestContent } from './constants.js';

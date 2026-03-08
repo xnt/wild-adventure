@@ -5,29 +5,87 @@ import {
     CHEST_INTERACT_RANGE,
     NUM_TRIFORCE_PIECES,
     TRIFORCE_BONUS_HP,
+    MAX_HP,
+    HEART_HP,
 } from '../constants.js';
-import type { GameChest } from '../types.js';
+import type { GameChest, GameCollectible, CollectibleType, CollectibleDefinition } from '../types.js';
 
 /**
- * CollectiblesSystem — handles chests, triforce pieces, and compass.
- *
- * Decoupled from GameScene; manages chest creation, opening logic,
- * and callbacks for item collection.
+ * CollectibleSystem — unified system for all pickups (hearts, triforce, compass, etc.)
+ * Handles both chests and loose pickups.
  */
-export class CollectiblesSystem {
+export class CollectibleSystem {
     scene: Phaser.Scene;
     chests: GameChest[] = [];
+    collectibles: Phaser.Physics.Arcade.Group;
+    
+    // Progress state
     triforcePieces = 0;
     hasCompass = false;
+
+    // Definitions
+    private definitions: Record<CollectibleType, CollectibleDefinition>;
 
     // Callbacks
     onTriforceCollected?: (pieceIndex: number) => void;
     onTriforceComplete?: () => void;
     onCompassCollected?: () => void;
     onChestOpened?: (label: string) => void;
+    onHeartCollected?: () => void;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
+        this.collectibles = this.scene.physics.add.group();
+        
+        this.definitions = {
+            heart: {
+                type: 'heart',
+                texture: 'heart_full',
+                label: 'Heart',
+                onPickup: (scene: any) => {
+                    const effectiveMax = this.triforcePieces >= NUM_TRIFORCE_PIECES
+                        ? TRIFORCE_BONUS_HP
+                        : MAX_HP;
+                    scene.playerController.heal(HEART_HP, effectiveMax);
+                    this.onHeartCollected?.();
+                }
+            },
+            triforce_piece: {
+                type: 'triforce_piece',
+                texture: 'triforce_piece',
+                label: 'Triforce Piece',
+                onPickup: (scene: any) => {
+                    this.triforcePieces++;
+                    this.onTriforceCollected?.(this.triforcePieces);
+                    scene.cameras.main.flash(300, 255, 215, 0, false);
+                    if (this.triforcePieces >= NUM_TRIFORCE_PIECES) {
+                        this.onTriforceComplete?.();
+                    }
+                }
+            },
+            compass: {
+                type: 'compass',
+                texture: 'compass',
+                label: 'Compass',
+                onPickup: (scene: any) => {
+                    this.hasCompass = true;
+                    this.onCompassCollected?.();
+                    scene.cameras.main.flash(300, 100, 200, 255, false);
+                }
+            },
+            key: {
+                type: 'key',
+                texture: 'key',
+                label: 'Key',
+                onPickup: () => { /* Future use */ }
+            },
+            potion: {
+                type: 'potion',
+                texture: 'potion',
+                label: 'Potion',
+                onPickup: () => { /* Future use */ }
+            }
+        };
     }
 
     /**
@@ -57,6 +115,71 @@ export class CollectiblesSystem {
     }
 
     /**
+     * Spawn a loose collectible in the world.
+     */
+    spawnCollectible(x: number, y: number, type: CollectibleType): GameCollectible {
+        const def = this.definitions[type];
+        const collectible = this.collectibles.create(x, y, def.texture) as GameCollectible;
+        collectible.collectibleType = type;
+        collectible.setDepth(3).setScale(1.2);
+
+        // Standard float animation for all pickups
+        this.scene.tweens.add({
+            targets: collectible,
+            y: y - 8,
+            duration: 500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+        });
+
+        return collectible;
+    }
+
+    /**
+     * Set up collision between player and loose collectibles.
+     */
+    setupPlayerCollisions(player: Phaser.Physics.Arcade.Sprite): void {
+        this.scene.physics.add.overlap(
+            player,
+            this.collectibles,
+            (_p, collectible) => {
+                this.collect(collectible as GameCollectible);
+            },
+            undefined,
+            this,
+        );
+    }
+
+    /**
+     * Unified collection logic for any GameCollectible.
+     */
+    collect(collectible: GameCollectible): void {
+        const type = collectible.collectibleType;
+        const def = this.definitions[type];
+
+        // Apply effect
+        def.onPickup?.(this.scene, collectible);
+
+        // Renderer: Standard "pop" effect
+        const popIcon = this.scene.add.image(collectible.x, collectible.y, def.texture)
+            .setDepth(10).setScale(1.5);
+
+        this.scene.tweens.add({
+            targets: popIcon,
+            y: popIcon.y - 32,
+            alpha: 0,
+            scaleX: 2.5,
+            scaleY: 2.5,
+            duration: 800,
+            ease: 'Back.easeOut',
+            onComplete: () => popIcon.destroy(),
+        });
+
+        collectible.destroy();
+    }
+
+    /**
      * Check for player proximity to chests and open them.
      * Call from scene's update().
      */
@@ -74,114 +197,64 @@ export class CollectiblesSystem {
     }
 
     /**
-     * Open a chest and process its contents.
+     * Open a chest and process its contents through the unified pipeline.
      */
     openChest(chest: GameChest): void {
         chest.opened = true;
         chest.setTexture('chest_opened');
 
         const { content } = chest;
+        
+        // Use unified collection logic by creating a temporary virtual collectible
+        // or just calling the definition's onPickup directly.
+        // Let's create a visual "pop" as if it was a loose pickup.
+        
+        const type = content.type as CollectibleType;
+        const def = this.definitions[type];
+        
+        // Apply effect
+        def.onPickup?.(this.scene, null as any); // Pass null as sprite since it's from a chest
 
-        switch (content.type) {
-            case 'triforce_piece':
-                this.collectTriforcePiece(chest);
-                break;
-            case 'compass':
-                this.collectCompass(chest);
-                break;
-        }
-    }
-
-    /**
-     * Collect a triforce piece from a chest.
-     */
-    collectTriforcePiece(chest: GameChest): void {
-        this.triforcePieces++;
-
-        // Spawn floating piece animation
-        const piece = this.scene.add.image(chest.x, chest.y - 16, 'triforce_piece')
+        // Renderer: Standard "pop" effect
+        const popIcon = this.scene.add.image(chest.x, chest.y - 16, def.texture)
             .setDepth(10).setScale(1.5);
 
         this.scene.tweens.add({
-            targets: piece,
-            y: piece.y - 32,
+            targets: popIcon,
+            y: popIcon.y - 32,
             alpha: 0,
             scaleX: 2.5,
             scaleY: 2.5,
             duration: 800,
             ease: 'Back.easeOut',
-            onComplete: () => piece.destroy(),
+            onComplete: () => popIcon.destroy(),
         });
 
-        this.onTriforceCollected?.(this.triforcePieces);
-
-        // Camera flash (gold)
-        this.scene.cameras.main.flash(300, 255, 215, 0, false);
-
-        // Check for complete triforce
-        if (this.triforcePieces >= NUM_TRIFORCE_PIECES) {
-            this.onTriforceComplete?.();
-        }
+        this.onChestOpened?.(content.label);
     }
 
-    /**
-     * Collect the compass from a chest.
-     */
-    collectCompass(chest: GameChest): void {
-        this.hasCompass = true;
-
-        // Spawn floating compass animation
-        const compassIcon = this.scene.add.image(chest.x, chest.y - 16, 'compass')
-            .setDepth(10).setScale(1.5);
-
-        this.scene.tweens.add({
-            targets: compassIcon,
-            y: compassIcon.y - 32,
-            alpha: 0,
-            scaleX: 2.5,
-            scaleY: 2.5,
-            duration: 800,
-            ease: 'Back.easeOut',
-            onComplete: () => compassIcon.destroy(),
-        });
-
-        this.onCompassCollected?.();
-
-        // Camera flash (cyan)
-        this.scene.cameras.main.flash(300, 100, 200, 255, false);
-    }
-
-    /**
-     * Get all chests (for collision setup, etc.).
-     */
     getChests(): GameChest[] {
         return this.chests;
     }
 
-    /**
-     * Get current triforce piece count.
-     */
+    getCollectibles(): Phaser.Physics.Arcade.Group {
+        return this.collectibles;
+    }
+
     getTriforcePieces(): number {
         return this.triforcePieces;
     }
 
-    /**
-     * Check if player has compass.
-     */
     getHasCompass(): boolean {
         return this.hasCompass;
     }
 
-    /**
-     * Reset system state (for restart).
-     */
     reset(): void {
         this.chests.forEach((chest) => {
-            if (chest.active) {
-                chest.destroy();
-            }
+            if (chest.active) chest.destroy();
         });
         this.chests = [];
+        this.collectibles.clear(true, true);
         this.triforcePieces = 0;
         this.hasCompass = false;
     }

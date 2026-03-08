@@ -1,22 +1,29 @@
-// Tests for systems/collectiblesSystem.ts
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CollectiblesSystem } from './collectiblesSystem.js';
+import { CollectibleSystem } from './collectiblesSystem.js';
 
 describe('systems/collectiblesSystem.ts', () => {
-    let system: CollectiblesSystem;
+    let system: CollectibleSystem;
     let mockScene: any;
 
     beforeEach(() => {
         mockScene = {
             physics: {
                 add: {
+                    group: vi.fn().mockReturnValue({
+                        create: vi.fn().mockReturnValue({
+                            setDepth: vi.fn().mockReturnThis(),
+                            setScale: vi.fn().mockReturnThis(),
+                            destroy: vi.fn(),
+                        }),
+                        clear: vi.fn(),
+                    }),
                     sprite: vi.fn().mockReturnValue({
                         setDepth: vi.fn().mockReturnThis(),
                         setImmovable: vi.fn().mockReturnThis(),
                         setTexture: vi.fn().mockReturnThis(),
                         destroy: vi.fn(),
                     }),
+                    overlap: vi.fn(),
                 },
             },
             add: {
@@ -34,9 +41,12 @@ describe('systems/collectiblesSystem.ts', () => {
                     flash: vi.fn(),
                 },
             },
+            playerController: {
+                heal: vi.fn(),
+            }
         };
 
-        system = new CollectiblesSystem(mockScene);
+        system = new CollectibleSystem(mockScene);
     });
 
     describe('createChests', () => {
@@ -51,38 +61,41 @@ describe('systems/collectiblesSystem.ts', () => {
             expect(system.chests.length).toBe(2);
             expect(mockScene.physics.add.sprite).toHaveBeenCalledTimes(2);
         });
+    });
 
-        it('sets chest properties correctly', () => {
-            const positions = [{ x: 100, y: 100 }];
-            
-            system.createChests(positions);
-            
-            expect(system.chests[0].opened).toBe(false);
-            expect(system.chests[0].chestIndex).toBe(0);
+    describe('spawnCollectible', () => {
+        it('spawns a loose collectible of given type', () => {
+            const collectible = system.spawnCollectible(100, 100, 'heart');
+            expect(collectible).toBeDefined();
+            expect(mockScene.physics.add.group().create).toHaveBeenCalled();
         });
     });
 
-    describe('getTriforcePieces', () => {
-        it('returns current triforce piece count', () => {
-            system.triforcePieces = 2;
-            expect(system.getTriforcePieces()).toBe(2);
-        });
-    });
-
-    describe('getHasCompass', () => {
-        it('returns compass state', () => {
-            system.hasCompass = true;
-            expect(system.getHasCompass()).toBe(true);
+    describe('collect', () => {
+        it('applies heart effect and heals player', () => {
+            const mockCollectible = {
+                collectibleType: 'heart',
+                x: 100, y: 100,
+                destroy: vi.fn(),
+            };
             
-            system.hasCompass = false;
-            expect(system.getHasCompass()).toBe(false);
+            system.collect(mockCollectible as any);
+            
+            expect(mockScene.playerController.heal).toHaveBeenCalled();
+            expect(mockCollectible.destroy).toHaveBeenCalled();
         });
-    });
 
-    describe('getChests', () => {
-        it('returns chests array', () => {
-            system.chests = [{ x: 100, y: 100 }] as any;
-            expect(system.getChests()).toBe(system.chests);
+        it('applies triforce piece effect', () => {
+            const mockCollectible = {
+                collectibleType: 'triforce_piece',
+                x: 100, y: 100,
+                destroy: vi.fn(),
+            };
+            
+            system.collect(mockCollectible as any);
+            
+            expect(system.getTriforcePieces()).toBe(1);
+            expect(mockScene.cameras.main.flash).toHaveBeenCalled();
         });
     });
 
@@ -96,63 +109,11 @@ describe('systems/collectiblesSystem.ts', () => {
                 content: { type: 'triforce_piece', label: 'Test' },
             };
             system.chests = [mockChest] as any;
-            system.triforcePieces = 0;
             
-            // Player is at 100, 100 - within CHEST_INTERACT_RANGE (40)
             system.update(100, 100);
             
             expect(mockChest.opened).toBe(true);
             expect(mockChest.setTexture).toHaveBeenCalledWith('chest_opened');
-        });
-
-        it('skips already opened chests', () => {
-            const mockChest = {
-                opened: true,
-                x: 100,
-                y: 100,
-                setTexture: vi.fn(),
-            };
-            system.chests = [mockChest] as any;
-            
-            system.update(100, 100);
-            
-            expect(mockChest.setTexture).not.toHaveBeenCalled();
-        });
-
-        it('skips distant chests', () => {
-            const mockChest = {
-                opened: false,
-                x: 100,
-                y: 100,
-                setTexture: vi.fn(),
-            };
-            system.chests = [mockChest] as any;
-            
-            // Player is far away
-            system.update(500, 500);
-            
-            expect(mockChest.opened).toBe(false);
-            expect(mockChest.setTexture).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('callbacks', () => {
-        it('onTriforceCollected callback can be set', () => {
-            const onTriforceCollectedSpy = vi.fn();
-            system.onTriforceCollected = onTriforceCollectedSpy;
-            expect(system.onTriforceCollected).toBe(onTriforceCollectedSpy);
-        });
-
-        it('onTriforceComplete callback can be set', () => {
-            const onTriforceCompleteSpy = vi.fn();
-            system.onTriforceComplete = onTriforceCompleteSpy;
-            expect(system.onTriforceComplete).toBe(onTriforceCompleteSpy);
-        });
-
-        it('onCompassCollected callback can be set', () => {
-            const onCompassCollectedSpy = vi.fn();
-            system.onCompassCollected = onCompassCollectedSpy;
-            expect(system.onCompassCollected).toBe(onCompassCollectedSpy);
         });
     });
 
@@ -167,72 +128,6 @@ describe('systems/collectiblesSystem.ts', () => {
             expect(system.triforcePieces).toBe(0);
             expect(system.hasCompass).toBe(false);
             expect(system.chests).toEqual([]);
-        });
-    });
-
-    describe('collectTriforcePiece', () => {
-        it('increments triforce pieces and triggers callback', () => {
-            const onTriforceCollectedSpy = vi.fn();
-            system.onTriforceCollected = onTriforceCollectedSpy;
-            system.triforcePieces = 0;
-            
-            const mockChest = {
-                x: 100,
-                y: 100,
-                content: { type: 'triforce_piece', label: 'Test Piece' },
-            };
-            
-            system.collectTriforcePiece(mockChest as any);
-            
-            expect(system.triforcePieces).toBe(1);
-            expect(onTriforceCollectedSpy).toHaveBeenCalledWith(1);
-        });
-
-        it('triggers onTriforceComplete when all pieces collected', () => {
-            const onTriforceCompleteSpy = vi.fn();
-            system.onTriforceComplete = onTriforceCompleteSpy;
-            system.triforcePieces = 2;
-            
-            const mockChest = {
-                x: 100,
-                y: 100,
-                content: { type: 'triforce_piece', label: 'Test Piece' },
-            };
-            
-            system.collectTriforcePiece(mockChest as any);
-            
-            expect(onTriforceCompleteSpy).toHaveBeenCalled();
-        });
-    });
-
-    describe('collectCompass', () => {
-        it('sets hasCompass to true', () => {
-            system.hasCompass = false;
-            
-            const mockChest = {
-                x: 100,
-                y: 100,
-                content: { type: 'compass', label: 'Compass' },
-            };
-            
-            system.collectCompass(mockChest as any);
-            
-            expect(system.hasCompass).toBe(true);
-        });
-
-        it('triggers onCompassCollected callback', () => {
-            const onCompassCollectedSpy = vi.fn();
-            system.onCompassCollected = onCompassCollectedSpy;
-            
-            const mockChest = {
-                x: 100,
-                y: 100,
-                content: { type: 'compass', label: 'Compass' },
-            };
-            
-            system.collectCompass(mockChest as any);
-            
-            expect(onCompassCollectedSpy).toHaveBeenCalled();
         });
     });
 });

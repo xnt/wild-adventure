@@ -2,6 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PlayerController } from './playerController.js';
+import type { PlayerIntent } from '../types.js';
 
 describe('systems/playerController.ts', () => {
     let controller: PlayerController;
@@ -27,23 +28,6 @@ describe('systems/playerController.ts', () => {
                     }),
                 },
             },
-            input: {
-                keyboard: {
-                    createCursorKeys: vi.fn().mockReturnValue({
-                        left: { isDown: false },
-                        right: { isDown: false },
-                        up: { isDown: false },
-                        down: { isDown: false },
-                    }),
-                    addKeys: vi.fn().mockReturnValue({
-                        up: { isDown: false },
-                        down: { isDown: false },
-                        left: { isDown: false },
-                        right: { isDown: false },
-                    }),
-                    addKey: vi.fn().mockReturnValue({}),
-                },
-            },
             cameras: { main: { shake: vi.fn() } },
             time: { delayedCall: vi.fn() },
             anims: {
@@ -55,18 +39,8 @@ describe('systems/playerController.ts', () => {
         controller = new PlayerController(mockScene);
     });
 
-    describe('init', () => {
-        it('initializes input keys', () => {
-            controller.initInput();
-            expect(mockScene.input.keyboard.createCursorKeys).toHaveBeenCalled();
-            expect(mockScene.input.keyboard.addKeys).toHaveBeenCalled();
-            expect(mockScene.input.keyboard.addKey).toHaveBeenCalled();
-        });
-    });
-
     describe('createPlayer', () => {
         it('creates player sprite at given position', () => {
-            controller.initInput();
             controller.createAnimations({ IDLE_N: 0, IDLE_S: 1, IDLE_E: 2, IDLE_W: 32 });
             controller.createPlayer(100, 200, 1);
 
@@ -100,29 +74,52 @@ describe('systems/playerController.ts', () => {
         });
     });
 
-    describe('touch controls', () => {
-        it('setTouchDir updates touch direction', () => {
-            controller.setTouchDir(1, 0);
-            expect(controller.touchDir.x).toBe(1);
-            expect(controller.touchDir.y).toBe(0);
+    describe('update with PlayerIntent', () => {
+        it('applies movement from intent', () => {
+            controller.createAnimations({ IDLE_S: 1, WALK_S1: 2, WALK_S2: 3 });
+            controller.createPlayer(100, 100, 1);
+            
+            const intent: PlayerIntent = { moveX: 0, moveY: 1, attack: false };
+            controller.update(1000, intent);
+            
+            // Should have called setVelocity (normalized)
+            expect(controller.player.setVelocity).toHaveBeenCalled();
         });
 
-        it('setTouchAttack sets touch attack flag', () => {
-            controller.setTouchAttack(true);
-            expect(controller.touchAttack).toBe(true);
-        });
-
-        it('consumeTouchAttack returns and clears touch attack', () => {
-            controller.setTouchAttack(true);
-            const result = controller.consumeTouchAttack();
+        it('returns true when moving', () => {
+            controller.createAnimations({ IDLE_S: 1, WALK_S1: 2, WALK_S2: 3 });
+            controller.createPlayer(100, 100, 1);
+            
+            const intent: PlayerIntent = { moveX: 1, moveY: 0, attack: false };
+            const result = controller.update(1000, intent);
+            
             expect(result).toBe(true);
-            expect(controller.touchAttack).toBe(false);
+        });
+
+        it('returns false when not moving', () => {
+            controller.createAnimations({ IDLE_S: 1 });
+            controller.createPlayer(100, 100, 1);
+            
+            const intent: PlayerIntent = { moveX: 0, moveY: 0, attack: false };
+            const result = controller.update(1000, intent);
+            
+            expect(result).toBe(false);
+        });
+
+        it('returns false when attacking', () => {
+            controller.createAnimations({ IDLE_S: 1 });
+            controller.createPlayer(100, 100, 1);
+            controller.setAttacking(true);
+            
+            const intent: PlayerIntent = { moveX: 1, moveY: 0, attack: false };
+            const result = controller.update(1000, intent);
+            
+            expect(result).toBe(false);
         });
     });
 
     describe('animation helpers', () => {
         it('playIdle plays idle animation for current facing', () => {
-            controller.initInput();
             controller.createAnimations({ IDLE_N: 0, IDLE_S: 1, IDLE_E: 2, IDLE_W: 32 });
             controller.createPlayer(100, 100, 1);
             controller.facing = 'down';
@@ -131,7 +128,6 @@ describe('systems/playerController.ts', () => {
         });
 
         it('playAttack plays attack animation for current facing', () => {
-            controller.initInput();
             controller.createAnimations({ ATK_N: 64, ATK_S: 33, ATK_E: 3, ATK_W: 35 });
             controller.createPlayer(100, 100, 1);
             controller.facing = 'right';
@@ -142,7 +138,6 @@ describe('systems/playerController.ts', () => {
 
     describe('stop', () => {
         it('stops player velocity', () => {
-            controller.initInput();
             controller.createAnimations({ IDLE_S: 1 });
             controller.createPlayer(100, 100, 1);
             controller.stop();
@@ -152,7 +147,6 @@ describe('systems/playerController.ts', () => {
 
     describe('getPosition', () => {
         it('returns player position', () => {
-            controller.initInput();
             controller.createAnimations({ IDLE_S: 1 });
             controller.createPlayer(100, 100, 1);
             const pos = controller.getPosition();

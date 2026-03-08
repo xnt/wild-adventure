@@ -49,14 +49,15 @@ describe('systems/enemySystem.ts', () => {
     });
 
     describe('init', () => {
-        it('initializes enemy, heart, and projectile groups', () => {
+        it('initializes enemy and projectile groups', () => {
             const mockObstacleLayer = {} as any;
-            system.init(mockObstacleLayer);
+            const mockCollectibleSystem = {} as any;
+            system.init(mockObstacleLayer, mockCollectibleSystem);
 
             expect(system.enemies).toBeDefined();
-            expect(system.heartDrops).toBeDefined();
             expect(system.enemyProjectiles).toBeDefined();
             expect(system.obstacleLayer).toBe(mockObstacleLayer);
+            expect(system.collectibleSystem).toBe(mockCollectibleSystem);
         });
     });
 
@@ -85,13 +86,6 @@ describe('systems/enemySystem.ts', () => {
             
             const living = system.getLivingEnemies();
             expect(living.length).toBe(1);
-        });
-    });
-
-    describe('getHeartDrops', () => {
-        it('returns heart drops group', () => {
-            system.heartDrops = {} as any;
-            expect(system.getHeartDrops()).toBe(system.heartDrops);
         });
     });
 

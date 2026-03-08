@@ -4,17 +4,19 @@
 
 import { describe, it, expect } from 'vitest';
 import { MAP_COLS, MAP_ROWS, TILE_IDS } from './constants.js';
-import { generateMap, mapData } from './map.js';
+import { mapData } from './map.js';
+import { WorldFactory } from './worldFactory.js';
 
 describe('map.ts', () => {
-  it('generateMap produces grid within MAP_COLS x MAP_ROWS bounds', () => {
+  it('generateWorldData produces grid within MAP_COLS x MAP_ROWS bounds', () => {
+    const factory = new WorldFactory(null as any);
     const cols = 10;
     const rows = 15;
-    const map = generateMap(cols, rows);
+    const data = factory.generateWorldData(cols, rows);
 
-    expect(map).toHaveLength(rows);  // Rows
-    expect(map[0]).toHaveLength(cols);  // Cols in first row
-    expect(map.every((row) => row.length === cols)).toBe(true);
+    expect(data.map).toHaveLength(rows);  // Rows
+    expect(data.map[0]).toHaveLength(cols);  // Cols in first row
+    expect(data.map.every((row) => row.length === cols)).toBe(true);
   });
 
   it('mapData singleton matches default MAP_COLS/MAP_ROWS', () => {

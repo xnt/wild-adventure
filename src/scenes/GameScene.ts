@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
 import {
     TILE_SIZE, MAP_COLS, MAP_ROWS,
-    MAX_HP, HEART_HP, NUM_ENEMIES,
+    MAX_HP, NUM_ENEMIES,
     FRAMES as F,
     NUM_TRIFORCE_PIECES, TRIFORCE_BONUS_HP,
 } from '../constants.js';
 import { mapData, chestPositions, structurePlacements } from '../map.js';
 import { generateFallbacks } from '../fallbacks/index.js';
-import { buildTilemap } from '../gameSceneUtils.js';
+import { WorldFactory, WorldData } from '../worldFactory.js';
+import type { PlayerIntent } from '../types.js';
 
 // Systems
 import {
@@ -15,7 +16,10 @@ import {
     CombatSystem,
     EnemySystem,
     UISystem,
-    CollectiblesSystem,
+    CollectibleSystem,
+    KeyboardInputSource,
+    TouchInputSource,
+    CompositeInputSource,
 } from '../systems/index.js';
 
 // ===========================================================================
@@ -28,13 +32,17 @@ export default class GameScene extends Phaser.Scene {
     combatSystem!: CombatSystem;
     enemySystem!: EnemySystem;
     uiSystem!: UISystem;
-    collectiblesSystem!: CollectiblesSystem;
-
-    // World
-    obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
+    collectibleSystem!: CollectibleSystem;
 
     // Input
+    inputSource!: CompositeInputSource;
+    keyboardSource!: KeyboardInputSource;
     restartKey!: Phaser.Input.Keyboard.Key;
+
+    // World
+    worldFactory!: WorldFactory;
+    worldData!: WorldData;
+    obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
 
     // Game state
     gameOver = false;
@@ -109,9 +117,16 @@ export default class GameScene extends Phaser.Scene {
     create(): void {
         generateFallbacks(this);
 
+        // World Factory
+        this.worldFactory = new WorldFactory(this);
+        this.worldData = {
+            map: mapData,
+            chests: chestPositions,
+            structures: structurePlacements,
+        };
+
         // Build world
-        this._buildTilemap();
-        this._createStructures();
+        this.obstacleLayer = this.worldFactory.buildWorld(this.worldData);
 
         // Initialize systems
         this._initSystems();
@@ -124,9 +139,6 @@ export default class GameScene extends Phaser.Scene {
         // Input
         // @ts-expect-error Phaser addKey interop
         this.restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)!;
-
-        // Touch controls
-        this._setupTouchControls();
     }
 
     // -----------------------------------------------------------------------
@@ -136,18 +148,39 @@ export default class GameScene extends Phaser.Scene {
         const startX = Math.floor(MAP_COLS / 2) * TILE_SIZE + TILE_SIZE / 2;
         const startY = Math.floor(MAP_ROWS / 2) * TILE_SIZE + TILE_SIZE / 2;
 
+        // Input sources (device-agnostic intent generation)
+        this.keyboardSource = new KeyboardInputSource(this);
+        const touchSource = new TouchInputSource(this);
+        this.inputSource = new CompositeInputSource([this.keyboardSource, touchSource]);
+
         // Player Controller
         this.playerController = new PlayerController(this);
-        this.playerController.initInput();
         this.playerController.createAnimations(F);
         this.playerController.createPlayer(startX, startY, F.IDLE_S);
         this.playerController.setHP(MAX_HP);
         this.playerController.onDeath = () => this._showGameOver();
 
+        // UI System
+        this.uiSystem = new UISystem(this);
+        this.uiSystem.create(NUM_ENEMIES);
+
+        // Collectible System
+        this.collectibleSystem = new CollectibleSystem(this);
+        this.collectibleSystem.createChests(chestPositions);
+        this.collectibleSystem.onTriforceCollected = (pieceIndex) => {
+            this.uiSystem.updateTriforce(pieceIndex);
+        };
+        this.collectibleSystem.onTriforceComplete = () => {
+            this._onTriforceComplete();
+        };
+        this.collectibleSystem.onCompassCollected = () => {
+            this.uiSystem.enableCompass();
+        };
+
         // Enemy System
         this.enemySystem = new EnemySystem(this);
-        this.enemySystem.init(this.obstacleLayer);
-        this.enemySystem.createEnemies(mapData, startX, startY);
+        this.enemySystem.init(this.obstacleLayer, this.collectibleSystem);
+        this.enemySystem.createEnemies(this.worldFactory, mapData, startX, startY);
         this.enemySystem.setupPlayerCollisions(this.playerController.player);
         this.enemySystem.onPlayerHitByEnemy = (enemy) => {
             this.playerController.takeDamage(enemy, this.time.now);
@@ -161,20 +194,8 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.playerController.player, this.obstacleLayer);
         this.physics.add.collider(this.enemySystem.getEnemies(), this.obstacleLayer);
 
-        // Heart pickup collision
-        this.physics.add.overlap(
-            this.playerController.player,
-            this.enemySystem.getHeartDrops(),
-            (_p, heart) => {
-                const effectiveMax = this.collectiblesSystem.getTriforcePieces() >= NUM_TRIFORCE_PIECES
-                    ? TRIFORCE_BONUS_HP
-                    : MAX_HP;
-                this.playerController.heal(HEART_HP, effectiveMax);
-                (heart as Phaser.Physics.Arcade.Sprite).destroy();
-            },
-            undefined,
-            this,
-        );
+        // Collectible pickup collision
+        this.collectibleSystem.setupPlayerCollisions(this.playerController.player);
 
         // Combat System
         this.combatSystem = new CombatSystem(this);
@@ -192,23 +213,6 @@ export default class GameScene extends Phaser.Scene {
         this.combatSystem.onEnemyHit = (enemy) => {
             this.enemySystem.damageEnemy(enemy);
         };
-
-        // UI System
-        this.uiSystem = new UISystem(this);
-        this.uiSystem.create(NUM_ENEMIES);
-
-        // Collectibles System
-        this.collectiblesSystem = new CollectiblesSystem(this);
-        this.collectiblesSystem.createChests(chestPositions);
-        this.collectiblesSystem.onTriforceCollected = (pieceIndex) => {
-            this.uiSystem.updateTriforce(pieceIndex);
-        };
-        this.collectiblesSystem.onTriforceComplete = () => {
-            this._onTriforceComplete();
-        };
-        this.collectiblesSystem.onCompassCollected = () => {
-            this.uiSystem.enableCompass();
-        };
     }
 
     // -----------------------------------------------------------------------
@@ -222,49 +226,33 @@ export default class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Update player
-        this.playerController.update(time);
+        // Update input sources (consumes one-shot events like attack)
+        this.inputSource.update();
 
-        // Update combat (check for attack input)
+        // Get unified intent from all input sources
+        const intent = this.inputSource.getIntent();
+
+        // Update player with intent
+        this.playerController.update(time, intent);
+
+        // Update combat (check for attack intent)
         const playerPos = this.playerController.getPosition();
-        const justPressed = Phaser.Input.Keyboard.JustDown(this.playerController.spaceKey)
-            || this.playerController.consumeTouchAttack();
         this.combatSystem.update(
             time,
             playerPos.x,
             playerPos.y,
             this.playerController.getFacing(),
-            justPressed,
+            intent.attack,
         );
 
         // Update enemies
         this.enemySystem.update(time, playerPos);
 
         // Update collectibles (chest proximity check)
-        this.collectiblesSystem.update(playerPos.x, playerPos.y);
+        this.collectibleSystem.update(playerPos.x, playerPos.y);
 
         // Update UI
         this._updateUI();
-    }
-
-    // -----------------------------------------------------------------------
-    // World building
-    // -----------------------------------------------------------------------
-    _buildTilemap(): void {
-        this.obstacleLayer = buildTilemap(
-            this, mapData, TILE_SIZE, MAP_COLS, MAP_ROWS,
-        );
-    }
-
-    _createStructures(): void {
-        for (const placement of structurePlacements) {
-            const { config, x, y } = placement;
-            const centerX = x + (config.width * TILE_SIZE) / 2;
-            const centerY = y + (config.height * TILE_SIZE) / 2;
-
-            const structure = this.add.image(centerX, centerY, config.key);
-            structure.setDepth(2);
-        }
     }
 
     // -----------------------------------------------------------------------
@@ -278,7 +266,7 @@ export default class GameScene extends Phaser.Scene {
         this.uiSystem.updateEnemyCounter(remaining);
 
         // Compass arrow
-        if (this.collectiblesSystem.getHasCompass()) {
+        if (this.collectibleSystem.getHasCompass()) {
             const livingEnemies = this.enemySystem.getLivingEnemies();
             if (livingEnemies.length > 0) {
                 // Find closest enemy
@@ -346,34 +334,5 @@ export default class GameScene extends Phaser.Scene {
 
         // Show flash text
         this.uiSystem.showFlashText('✦ Triforce Complete! HP upgraded! ✦');
-    }
-
-    // -----------------------------------------------------------------------
-    // Touch controls
-    // -----------------------------------------------------------------------
-    _setupTouchControls(): void {
-        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-            if (pointer.x > this.scale.width * 0.7) {
-                this.playerController.setTouchAttack(true);
-            }
-        });
-
-        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-            if (pointer.isDown && pointer.x <= this.scale.width * 0.7) {
-                const dx = pointer.x - pointer.downX;
-                const dy = pointer.y - pointer.downY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 10) {
-                    this.playerController.setTouchDir(dx / dist, dy / dist);
-                } else {
-                    this.playerController.setTouchDir(0, 0);
-                }
-            }
-        });
-
-        this.input.on('pointerup', () => {
-            this.playerController.setTouchDir(0, 0);
-            this.playerController.setTouchAttack(false);
-        });
     }
 }
