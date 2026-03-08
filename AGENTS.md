@@ -18,8 +18,9 @@ This file helps AI assistants (and humans) understand the project and make consi
 | `src/constants.ts` | All tunable numbers (speeds, HP, ranges, cooldowns), chest contents (`CHEST_CONTENTS` for triforce pieces and compass), and the player spritesheet frame map (`FRAMES`). Change gameplay balance or sprite layout here. |
 | `src/map.ts` | Procedural 50×50 tilemap. Exports `generateMap()` and `mapData`. Tile types: 0 grass, 1 tree, 2 rock. |
 | `src/fallbacks/` | Programmatic texture generation when PNGs are missing. Split into modules: `tileFallbacks.ts` (grass/tree/rock), `enemyFallbacks.ts` (goblin/wizrobe/lynel/proj), `uiFallbacks.ts` (hearts/chests/triforce/compass), `structureFallbacks.ts` (decorative landmarks), `playerFallback.ts` (player spritesheet). Main entry: `index.ts` exports `generateFallbacks(scene)`. |
-| `src/gameSceneUtils.ts` | Extracted pure helpers (movement calcs, attack offsets, enemy spawn/AI, UI state) for testability/readability. |
-| `src/scenes/GameScene.ts` | Main game scene: preload, create, update, and all game logic (player, enemies, combat, chests/triforce/compass, UI, touch). Delegates pure logic to utils; use `_methodName` for private-style helpers. |
+| `src/systems/` | Decoupled game systems orchestrated by GameScene: `playerController.ts` (movement/animation/damage), `combatSystem.ts` (attack timing/sword hitboxes), `enemySystem.ts` (spawning/AI/projectiles), `uiSystem.ts` (HUD/overlays/flash text), `collectiblesSystem.ts` (chests/triforce/compass). |
+| `src/gameSceneUtils.ts` | Extracted pure helpers (movement calcs, attack offsets, enemy spawn/AI, UI state) for testability/readability. Used by systems. |
+| `src/scenes/GameScene.ts` | Main game scene: orchestrates systems via `init()`, `create()`, `update()`. No direct game logic—delegates to systems. |
 | `src/scenes/StartScene.ts` | Title/loading screen shown before the game begins. Teaches controls and mechanics. |
 | `src/types.ts` | Shared types (GameEnemy, Facing, etc.) for DRY/TS safety. |
 | `public/` | Static assets. Vite serves these at `/`. Game loads e.g. `grass.png` from root, so files go in `public/` (e.g. `public/grass.png`). |
@@ -30,7 +31,7 @@ There is no state management beyond Phaser scenes; no Redux, no global store. Sc
 
 - **Imports**: Use explicit `.js` in relative imports for ESM/TS (e.g. `from './constants.js'`); Vite/TS handles extensionless internally but explicit avoids resolver issues.
 - **New scenes**: Create under `src/scenes/`, add to the `scene: [...]` array in `main.ts`.
-- **New assets**: Load in the scene’s `preload()`. If the asset is optional, ensure a fallback exists in `fallbacks.ts` (keyed by the same string). List new PNGs in `README.md`.
+- **New assets**: Load in the scene’s `preload()`. If the asset is optional, ensure a fallback exists in `fallbacks/` (keyed by the same string). List new PNGs in `README.md`.
 - **Gameplay constants**: Prefer adding and tweaking values in `constants.ts` rather than magic numbers in the scene.
 - **Style**: Existing code uses trailing commas, single quotes, arrow funcs for pure logic, and short comments where helpful. Match that style in new code. See PHASER4_MIGRATION.md for v4 notes.
 
@@ -38,8 +39,8 @@ There is no state management beyond Phaser scenes; no Redux, no global store. Sc
 
 - **Physics**: Arcade only. No matter, no complex bodies. Use `this.physics.add.collider`, `overlap`, and velocity/position. (Phaser 4 RC compatible; see migration doc.)
 - **Camera**: Main camera follows the player with `startFollow(player, true, 0.15, 0.15)`. Bounds are set from map dimensions in `constants.ts` (e.g. `MAP_COLS * TILE_SIZE`).
-- **Animations**: Created once in `GameScene._createPlayer()`; guarded with `if (!this.anims.exists('idle_up'))` so restarts don’t duplicate. Animation keys follow `idle_*`, `walk_*`, `attack_*` with direction suffix (`up`, `down`, `left`, `right`).
-- **Spritesheet**: Player is a 512×512 sheet, 32×32 frames, 16 columns. Frame indices are in `constants.ts` as `FRAMES`; the fallback in `fallbacks.ts` draws a canvas in the same layout. (Shapes/rects preferred over PNGs; see migration for v4 rendering.)
+- **Animations**: Created once in `PlayerController.createAnimations()`; guarded with `if (!this.scene.anims.exists('idle_up'))` so restarts don't duplicate. Animation keys follow `idle_*`, `walk_*`, `attack_*` with direction suffix (`up`, `down`, `left`, `right`).
+- **Spritesheet**: Player is a 512×512 sheet, 32×32 frames, 16 columns. Frame indices are in `constants.ts` as `FRAMES`; the fallback in `fallbacks/` draws a canvas in the same layout. (Shapes/rects preferred over PNGs; see migration for v4 rendering.)
 
 ## Testing changes
 

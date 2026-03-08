@@ -19,7 +19,7 @@ export default class StartScene extends Phaser.Scene {
     // -----------------------------------------------------------------------
     preload(): void {
         this.load.on('loaderror', (fileObj: Phaser.Loader.File) => {
-            console.warn(`Asset not found: ${fileObj.key} — will use fallback.`);
+            // Asset not found — will use fallback
         });
 
         this.load.spritesheet('player', 'player_sheet.png', {

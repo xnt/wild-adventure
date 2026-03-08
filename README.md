@@ -49,7 +49,7 @@ npm run test:ui     # Vitest UI dashboard
 ```
 
 - **File convention**: `<target>.test.ts` (e.g., `gameSceneUtils.test.ts` tests `gameSceneUtils.ts`).
-- **Refactors**: Extracted non-UI logic to `gameSceneUtils.ts` (effects/AI/math for readability/tests) + `types.ts` (shared Phaser types); GameScene thinned for maintainability.
+- **Refactors**: Extracted non-UI logic to `gameSceneUtils.ts` (effects/AI/math for readability/tests) + `types.ts` (shared Phaser types); GameScene logic further split into `systems/` (player, combat, enemies, UI, collectibles) for maintainability and testability.
 - **Mocks**: Vitest/jsdom + setup for Phaser (enables unit tests on UI-heavy code).
 
 - **Coverage**: Use report to prioritize (e.g., GameScene next).
@@ -68,12 +68,14 @@ wild-adventure/
     ├── main.ts             Phaser boot & game config
     ├── constants.ts        Tunable gameplay constants & sprite frame map
     ├── map.ts              Procedural 50×50 tilemap generator
-    ├── fallbacks.ts        Auto-generated textures when PNGs are missing
+    ├── fallbacks/          Auto-generated textures when PNGs are missing
+    ├── systems/            Decoupled game systems (player, combat, enemies, UI, collectibles)
     ├── gameSceneUtils.ts   Extracted non-UI utils (effects/AI/math)
     ├── types.ts            Shared TS types (GameEnemy, etc.)
     ├── style.css           Minimal fullscreen styles
     └── scenes/
-        └── GameScene.ts    Main game scene (player, enemies, combat, UI)
+        ├── StartScene.ts   Title/loading screen
+        └── GameScene.ts    Main game scene (orchestrates systems)
 ```
 
 ## Assets
