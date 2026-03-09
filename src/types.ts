@@ -51,7 +51,16 @@ export type GameEnemy = Phaser.Physics.Arcade.Sprite & {
     patrolTimer: number;
     isChasing: boolean;
     isDying?: boolean;
+    behavior?: EnemyBehavior;
 };
+
+/**
+ * Strategy interface for enemy behavior.
+ */
+export interface EnemyBehavior {
+    update(enemy: GameEnemy, player: PositionedObject, time: number): boolean;
+    onDamage?(enemy: GameEnemy, enemySystem: any): void;
+}
 
 /** Union for physics callbacks (exact match to ArcadePhysicsCallback for assignability). */
 export type PhysicsCallbackObject =

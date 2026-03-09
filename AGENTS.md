@@ -48,7 +48,8 @@ GameScene orchestrates decoupled systems. No global state; scene resets in `init
 |--------|----------------|
 | `PlayerController` | Movement, facing, animation, damage, HP |
 | `CombatSystem` | Attack timing, sword hitbox, cooldowns |
-| `EnemySystem` | Spawning, AI, projectiles, drops |
+| `EnemySystem` | Spawning, AI orchestration, projectiles, drops |
+| `enemyBehaviors/` | Strategy-pattern AI behaviors (Goblin, Wizrobe, Lynel, Gel) |
 | `UISystem` | HUD hearts, enemy counter, overlays |
 | `CollectibleSystem` | Unified pickup pipeline (hearts, triforce, compass) |
 | `InputSource` classes | Device-agnostic input (keyboard, touch) |
@@ -63,6 +64,7 @@ For implementation details, see the skill files in `.grok/skills/`:
 - **[collectibles.md](.grok/skills/collectibles.md)**: Unified pickup pipeline, adding new items
 - **[world-factory.md](.grok/skills/world-factory.md)**: World generation, spawn queries
 - **[testing.md](.grok/skills/testing.md)**: Test patterns, mocking Phaser
+- **[enemy-behaviors.md](.grok/skills/enemy-behaviors.md)**: Strategy-pattern enemy AI, adding new enemy types
 
 ## Conventions
 

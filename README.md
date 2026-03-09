@@ -96,6 +96,9 @@ The game auto-generates coloured placeholder textures at runtime, so **no image 
 | `tree.png` | 32×32 | Tree tile (impassable) |
 | `rock.png` | 32×32 | Rock tile (impassable) |
 | `goblin.png` | 32×32 | Goblin sprite |
+| `wizrobe.png` | 32×32 | Wizrobe sprite |
+| `lynel.png` | 32×32 | Lynel sprite |
+| `gel.png` | 32×32 | Gel sprite |
 | `heart_full.png` | 16×16 | Full heart icon |
 | `heart_empty.png` | 16×16 | Empty heart icon |
 | `compass.png` | 16×16 | Compass collectible |
@@ -112,7 +115,13 @@ The game auto-generates coloured placeholder textures at runtime, so **no image 
 
 - **Overworld**: 50×50 tile map (~80 % grass, ~12 % trees, ~8 % rocks) with carved cross-paths and a tree border wall.
 - **Player**: 4 hearts (96 HP). Takes 24 damage per enemy touch. 0.8 s invincibility after each hit with knockback.
-- **Enemies**: The world contains a mix of goblins, wizrobes, and a lynel miniboss. Goblins patrol randomly and chase the player if they come within 128 px; they die in one sword hit and drop a heart pickup (+24 HP). Wizrobes teleport between set points, periodically casting ranged magic projectiles at the player, and are vulnerable to sword attacks. The lynel is tougher, pursuing the player aggressively, using both melee charges and powerful ranged attacks, and requires multiple hits to defeat. The exact composition and number of each enemy type may vary from game to game.
+- **Enemies**: The world contains a mix of goblins, wizrobes, gels, and a lynel miniboss. Each enemy type has distinct AI behavior:
+  - **Goblins**: Patrol randomly and chase the player within 128 px; die in one sword hit and drop a heart pickup (+24 HP).
+  - **Wizrobes**: Chase the player and periodically fire ranged projectiles; vulnerable to sword attacks.
+  - **Gels**: Small, fast enemies that split into two smaller gels when killed (unless already small).
+  - **Lynel**: A tough miniboss that pursues aggressively with both melee and ranged attacks; requires multiple hits to defeat.
+  - The exact composition and number of each enemy type may vary from game to game.
+  - Enemy AI is implemented using a strategy pattern in `src/systems/enemyBehaviors/` for easy extension.
 - **Chests**: 4 chests are scattered across the map containing:
   - **3 Triforce pieces** (Courage, Wisdom, Power) — collect all 3 to upgrade HP to 8 hearts!
   - **1 Compass** — once collected, a red arrow appears at the top of the screen pointing toward the closest enemy, helping you track them down.

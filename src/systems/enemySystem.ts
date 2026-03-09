@@ -8,10 +8,10 @@ import type { GameEnemy, PositionedObject } from '../types.js';
 import { WorldFactory } from '../worldFactory.js';
 import { CollectibleSystem } from './collectiblesSystem.js';
 import {
-    updateEnemies,
     createDeathEffect,
     calcProjectileParams,
 } from '../gameSceneUtils.js';
+import { createBehavior } from './enemyBehaviors/index.js';
 
 /**
  * EnemySystem — handles enemy spawning, AI updates, shooting,
@@ -111,6 +111,7 @@ export class EnemySystem {
             enemy.patrolTimer  = 0;
             enemy.isChasing    = false;
             enemy.isDying      = false;
+            enemy.behavior     = createBehavior(enemyType);
 
             this.enemies.add(enemy);
             spawned++;
@@ -151,10 +152,15 @@ export class EnemySystem {
      * Update all enemies (AI, shooting).
      */
     update(time: number, player: PositionedObject): void {
-        const shooters = updateEnemies(this.enemies, player, time);
-        for (const enemy of shooters) {
-            this.enemyShoot(enemy);
-        }
+        this.playerPos = player; // Keep player position updated
+        (this.enemies.getChildren() as GameEnemy[]).forEach((enemy) => {
+            if (enemy.behavior) {
+                const shouldShoot = enemy.behavior.update(enemy, player, time);
+                if (shouldShoot) {
+                    this.enemyShoot(enemy);
+                }
+            }
+        });
     }
 
     /**
@@ -197,7 +203,6 @@ export class EnemySystem {
     damageEnemy(enemy: GameEnemy): boolean {
         if (enemy.isDying) return false;
 
-        const oldHp = enemy.hp;
         enemy.hp = (enemy.hp || 1) - 1;
 
         // Visual feedback
@@ -208,16 +213,13 @@ export class EnemySystem {
             }
         });
 
-        if (enemy.hp <= 0) {
-            if (enemy.type === 'gel') {
-                this.splitGel(enemy);
-                return true;
-            }
+        if (enemy.behavior?.onDamage) {
+            enemy.behavior.onDamage(enemy, this);
+        } else if (enemy.hp <= 0) {
             this.killEnemy(enemy);
-            return true;
         }
 
-        return false;
+        return enemy.hp <= 0;
     }
 
     /**
@@ -272,6 +274,7 @@ export class EnemySystem {
             gel.patrolTimer = 0;
             gel.isChasing = false;
             gel.isDying = false;
+            gel.behavior = createBehavior('gel_small');
 
             this.enemies.add(gel);
         });

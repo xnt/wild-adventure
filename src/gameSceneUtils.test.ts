@@ -9,7 +9,6 @@ import {
     createDeathEffect,
     calcProjectileParams,
     calcKnockbackVelocity,
-    updateEnemies,
     // New extracts + completed stubs for behavior tests/cov.
     getFacingFromVelocity,
     calcNormalizedVelocity,
@@ -20,9 +19,8 @@ import {
     calcIframesAlpha,
     getHeartTexture,
     getRemainingEnemies,
-    // updateEnemy: delegated in updateEnemies.
 } from './gameSceneUtils.js';
-import type { PositionedObject, GameEnemy } from './types.js';
+import type { PositionedObject } from './types.js';
 // EnemyConfig for createEnemies test (re-exported via const).
 import type { EnemyConfig } from './constants.js';
 
@@ -69,28 +67,6 @@ describe('gameSceneUtils.ts', () => {
 
         expect(vx).toBe(300);  // Rightward
         expect(vy).toBe(0);
-    });
-
-    it('updateEnemies updates AI (chase/patrol/bob; from _updateEnemies forEach)', () => {
-        // Mock enemies group/player/time; verifies delegation to updateEnemy.
-        // Stub GameEnemy methods/props (setVelocity, setScale etc.; patrol for else path).
-        // (Minimal for AI paths; expand mocks/spies in iteration.)
-        // MockEnemy as GameEnemy via unknown (intersection with Phaser.Sprite requires full props;
-        // common for tests; avoids excess stub while keeping type safety).
-        const mockEnemy = {
-            x: 100, y: 100, type: 'goblin', isDying: false, isChasing: false,
-            speedMult: 1, patrolTimer: 0, patrolTarget: { x: 100, y: 100 } as Phaser.Math.Vector2,
-            // Methods:
-            setVelocity: vi.fn(), setTint: vi.fn(), clearTint: vi.fn(), setScale: vi.fn(),
-        } as unknown as GameEnemy;
-        const mockEnemies = { getChildren: vi.fn().mockReturnValue([mockEnemy]) } as unknown as Phaser.Physics.Arcade.Group;
-        const player: PositionedObject = { x: 150, y: 150 };
-
-        updateEnemies(mockEnemies, player, 1000);
-
-        expect(mockEnemy.setVelocity).toHaveBeenCalled();
-        expect(mockEnemy.setScale).toHaveBeenCalled();  // Bob animation
-        // Expand for patrol/shoot/bob cases in iteration.
     });
 });
 
