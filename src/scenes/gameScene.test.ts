@@ -21,12 +21,19 @@ describe('scenes/GameScene.ts', () => {
 
     it('create sets up world and initializes systems', () => {
         const initSystemsSpy = vi.spyOn(scene as any, '_initSystems');
+        scene.worldFactory = {
+            buildWorld: vi.fn().mockReturnValue({
+                obstacleLayer: {},
+                waterLayer: {}
+            })
+        } as any;
 
         scene.create();
 
         expect(scene.worldFactory).toBeDefined();
         expect(scene.worldData).toBeDefined();
         expect(scene.obstacleLayer).toBeDefined();
+        expect(scene.waterLayer).toBeDefined();
         expect(initSystemsSpy).toHaveBeenCalled();
     });
 
@@ -52,8 +59,10 @@ describe('scenes/GameScene.ts', () => {
 
     it('_initSystems creates all game systems', () => {
         scene.obstacleLayer = {} as any;
+        scene.waterLayer = {} as any;
         scene.worldFactory = {
             getValidSpawn: vi.fn().mockReturnValue({ x: 100, y: 100 }),
+            getWaterSpawn: vi.fn().mockReturnValue({ x: 150, y: 150 }),
         } as any;
         
         scene._initSystems();

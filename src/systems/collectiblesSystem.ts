@@ -22,6 +22,7 @@ export class CollectibleSystem {
     // Progress state
     triforcePieces = 0;
     hasCompass = false;
+    hasSnorkel = false;
 
     // Definitions
     private definitions: Record<CollectibleType, CollectibleDefinition>;
@@ -30,6 +31,7 @@ export class CollectibleSystem {
     onTriforceCollected?: (pieceIndex: number) => void;
     onTriforceComplete?: () => void;
     onCompassCollected?: () => void;
+    onSnorkelCollected?: () => void;
     onChestOpened?: (label: string) => void;
     onHeartCollected?: () => void;
 
@@ -84,6 +86,16 @@ export class CollectibleSystem {
                 texture: 'potion',
                 label: 'Potion',
                 onPickup: () => { /* Future use */ }
+            },
+            snorkel: {
+                type: 'snorkel',
+                texture: 'snorkel',
+                label: 'Snorkel',
+                onPickup: (scene: any) => {
+                    this.hasSnorkel = true;
+                    this.onSnorkelCollected?.();
+                    scene.cameras.main.flash(300, 0, 150, 255, false);
+                }
             }
         };
     }
@@ -249,6 +261,10 @@ export class CollectibleSystem {
         return this.hasCompass;
     }
 
+    getHasSnorkel(): boolean {
+        return this.hasSnorkel;
+    }
+
     reset(): void {
         this.chests.forEach((chest) => {
             if (chest.active) chest.destroy();
@@ -257,5 +273,6 @@ export class CollectibleSystem {
         this.collectibles.clear(true, true);
         this.triforcePieces = 0;
         this.hasCompass = false;
+        this.hasSnorkel = false;
     }
 }

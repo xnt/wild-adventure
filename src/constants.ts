@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 
 export const TILE_SIZE: number    = 32;
-export const MAP_COLS: number     = 60;
-export const MAP_ROWS: number     = 60;
+export const MAP_COLS: number     = 90;  // 1.5x from original 60
+export const MAP_ROWS: number     = 90;  // 1.5x from original 60
 
 export const TILE_IDS = {
     PLAINS: 0,
@@ -13,6 +13,8 @@ export const TILE_IDS = {
     FOREST: 3,
     SWAMP: 4,
     SNOW: 5,
+    WATER: 6,
+    BRIDGE: 7,
 } as const;
 
 export const PLAYER_SPEED = 160;
@@ -27,7 +29,7 @@ export const ATTACK_CD    = 1000;  // cooldown between attacks (ms)
 export const MAX_HP       = 96;    // 4 hearts × 24 HP each
 export const HEART_HP     = 24;    // HP per heart container
 export const ENEMY_DMG    = 24;    // damage per enemy touch
-export const NUM_ENEMIES  = 7;
+export const NUM_ENEMIES  = 10;   // 7 original + 3 octoroks
 
 export const IFRAMES_DUR  = 800;   // invincibility after hit (ms)
 
@@ -81,6 +83,14 @@ export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
         texture: 'gel',
         scale: 0.5,
     },
+    octorok: {
+        hp: 1,
+        speedMult: 0,    // static
+        shoots: true,
+        texture: 'octorok',
+        projSpeed: 120,  // slightly faster than wizrobe (80)
+        shootCd: 2000,
+    },
 };
 
 // Projectile settings for Wizrobe attacks
@@ -90,7 +100,7 @@ export const PROJ_LIFETIME = 4000;  // ms before projectile auto-destroys
 // Chest / collectible settings
 // ---------------------------------------------------------------------------
 
-export const NUM_CHESTS = 4;           // total chests on the map (3 triforce + 1 compass)
+export const NUM_CHESTS = 5;           // 3 triforce + 1 compass + 1 snorkel
 export const CHEST_INTERACT_RANGE = 40; // px — player must be within this to open
 
 /**
@@ -99,16 +109,17 @@ export const CHEST_INTERACT_RANGE = 40; // px — player must be within this to 
  * keys, weapons, etc. later without changing the chest infrastructure.
  */
 export type ChestContent = {
-    type: 'triforce_piece' | 'compass';  // extend union when new loot types are added
+    type: 'triforce_piece' | 'compass' | 'snorkel';  // added snorkel
     label: string;           // human-readable name shown in UI flash
 };
 
-/** Default contents for the 4 chests (indexed by chest order). */
+/** Default contents for the 5 chests (indexed by chest order). */
 export const CHEST_CONTENTS: ChestContent[] = [
     { type: 'triforce_piece', label: 'Triforce of Courage' },
     { type: 'triforce_piece', label: 'Triforce of Wisdom' },
     { type: 'triforce_piece', label: 'Triforce of Power' },
     { type: 'compass', label: 'Compass' },
+    { type: 'snorkel', label: 'Snorkel' },
 ];
 
 /** Number of triforce pieces required for the full triforce bonus. */

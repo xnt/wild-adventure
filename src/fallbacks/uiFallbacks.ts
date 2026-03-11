@@ -165,4 +165,40 @@ export const generateUIFallbacks = (scene: Phaser.Scene, g: Phaser.GameObjects.G
         g.fillTriangle(8, 4, 4, 14, 12, 14);
         g.generateTexture('compass_arrow', 16, 16);
     }
+
+    // ---- Snorkel (collectable item from chest) ----
+    if (!scene.textures.exists('snorkel')) {
+        g.clear();
+        // Mask (blue/cyan)
+        g.fillStyle(0x00ffff);
+        g.fillRoundedRect(2, 4, 12, 8, 2);
+        // Glass (lighter blue)
+        g.fillStyle(0xccffff);
+        g.fillRect(4, 6, 8, 4);
+        // Snorkel tube (yellowish)
+        g.fillStyle(0xffff00);
+        g.fillRect(12, 2, 2, 10);
+        g.fillRect(10, 10, 4, 2); // mouthpiece
+        g.generateTexture('snorkel', 16, 16);
+    }
+
+    // ---- Snorkel HUD icon (shows in HUD when collected) ----
+    if (!scene.textures.exists('snorkel_hud')) {
+        g.clear();
+        // Mask
+        g.fillStyle(0x00ffff);
+        g.fillRoundedRect(4, 6, 8, 6, 1);
+        // Snorkel tube
+        g.fillStyle(0xffff00);
+        g.fillRect(12, 4, 2, 8);
+        g.generateTexture('snorkel_hud', 16, 16);
+    }
+
+    // ---- Snorkel HUD empty (dimmed) ----
+    if (!scene.textures.exists('snorkel_hud_empty')) {
+        g.clear();
+        g.fillStyle(0x333344);
+        g.fillRoundedRect(4, 6, 8, 6, 1);
+        g.generateTexture('snorkel_hud_empty', 16, 16);
+    }
 };

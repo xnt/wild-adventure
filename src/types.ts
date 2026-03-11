@@ -77,7 +77,7 @@ export type Facing = 'up' | 'down' | 'left' | 'right';
 
 // --- Unified Collectible System Types ---
 
-export type CollectibleType = 'heart' | 'triforce_piece' | 'compass' | 'key' | 'potion';
+export type CollectibleType = 'heart' | 'triforce_piece' | 'compass' | 'key' | 'potion' | 'snorkel';
 
 export interface CollectibleDefinition {
     type: CollectibleType;

@@ -87,6 +87,52 @@ export const generateTileFallbacks = (scene: Phaser.Scene, g: Phaser.GameObjects
         g.generateTexture('snow', TILE_SIZE, TILE_SIZE);
     }
 
+    // ---- Water (blue with wave highlights) ----
+    if (!scene.textures.exists('water')) {
+        g.clear();
+        g.fillStyle(0x3366cc);
+        g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        // Wave highlights
+        addSpeckles(g, 0x4488dd, [
+            [2, 8, 8, 2],
+            [14, 4, 10, 2],
+            [6, 16, 12, 2],
+            [18, 22, 10, 2],
+            [2, 26, 6, 2],
+        ]);
+        // Darker depths
+        addSpeckles(g, 0x2255aa, [
+            [8, 12, 4, 3],
+            [20, 14, 6, 4],
+            [4, 20, 5, 3],
+        ]);
+        g.generateTexture('water', TILE_SIZE, TILE_SIZE);
+    }
+
+    // ---- Bridge (wooden planks over water) ----
+    if (!scene.textures.exists('bridge')) {
+        g.clear();
+        // Water base
+        g.fillStyle(0x3366cc);
+        g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        // Wooden planks
+        g.fillStyle(0x8b6914);
+        g.fillRect(2, 4, 28, 6);
+        g.fillRect(2, 14, 28, 6);
+        g.fillRect(2, 24, 28, 6);
+        // Plank highlights
+        g.fillStyle(0xa07d1a);
+        g.fillRect(2, 4, 28, 2);
+        g.fillRect(2, 14, 28, 2);
+        g.fillRect(2, 24, 28, 2);
+        // Plank shadows
+        g.fillStyle(0x6b4d0a);
+        g.fillRect(2, 8, 28, 2);
+        g.fillRect(2, 18, 28, 2);
+        g.fillRect(2, 28, 28, 2);
+        g.generateTexture('bridge', TILE_SIZE, TILE_SIZE);
+    }
+
     // ---- Tree (trunk + canopy) ----
     if (!scene.textures.exists('tree')) {
         g.clear();

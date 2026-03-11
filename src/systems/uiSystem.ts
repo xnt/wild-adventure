@@ -21,6 +21,7 @@ export class UISystem {
     enemyText!: Phaser.GameObjects.Text;
     triforceHudSprites: Phaser.GameObjects.Image[] = [];
     compassHudSprite!: Phaser.GameObjects.Image;
+    snorkelHudSprite!: Phaser.GameObjects.Image;
     compassArrow!: Phaser.GameObjects.Image;
     chestFlashText?: Phaser.GameObjects.Text;
 
@@ -48,6 +49,7 @@ export class UISystem {
         this._createEnemyCounter();
         this._createTriforceHUD();
         this._createCompassHUD();
+        this._createSnorkelHUD();
         this._createOverlays();
     }
 
@@ -86,8 +88,9 @@ export class UISystem {
      * Create triforce piece HUD.
      */
     private _createTriforceHUD(): void {
+        const startX = this.scene.scale.width - 140;
         for (let i = 0; i < NUM_TRIFORCE_PIECES; i++) {
-            const tx = this.scene.scale.width - 100 + i * 24;
+            const tx = startX + i * 24;
             const tri = this.scene.add.image(tx, 20, 'triforce_hud_empty')
                 .setScrollFactor(0)
                 .setDepth(100)
@@ -100,7 +103,8 @@ export class UISystem {
      * Create compass HUD and arrow.
      */
     private _createCompassHUD(): void {
-        const compassX = this.scene.scale.width - 100 + NUM_TRIFORCE_PIECES * 24 + 8;
+        const startX = this.scene.scale.width - 140;
+        const compassX = startX + NUM_TRIFORCE_PIECES * 24 + 8;
         this.compassHudSprite = this.scene.add.image(compassX, 20, 'compass_hud_empty')
             .setScrollFactor(0)
             .setDepth(100)
@@ -109,6 +113,18 @@ export class UISystem {
         this.compassArrow = this.scene.add.image(
             this.scene.scale.width / 2, 50, 'compass_arrow'
         ).setScrollFactor(0).setDepth(100).setScale(1.2).setVisible(false);
+    }
+
+    /**
+     * Create snorkel HUD.
+     */
+    private _createSnorkelHUD(): void {
+        const startX = this.scene.scale.width - 140;
+        const snorkelX = startX + NUM_TRIFORCE_PIECES * 24 + 32;
+        this.snorkelHudSprite = this.scene.add.image(snorkelX, 20, 'snorkel_hud_empty')
+            .setScrollFactor(0)
+            .setDepth(100)
+            .setScale(1.3);
     }
 
     /**
@@ -178,6 +194,13 @@ export class UISystem {
         this.hasCompass = true;
         this.compassArrow.setVisible(true);
         this.compassHudSprite.setTexture('compass_hud');
+    }
+
+    /**
+     * Enable snorkel (collected from chest).
+     */
+    enableSnorkel(): void {
+        this.snorkelHudSprite.setTexture('snorkel_hud');
     }
 
     /**

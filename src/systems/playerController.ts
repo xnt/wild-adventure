@@ -3,6 +3,7 @@ import {
     PLAYER_SPEED,
     IFRAMES_DUR,
     ENEMY_DMG,
+    TILE_IDS,
 } from '../constants.js';
 import type { Facing, PlayerIntent } from '../types.js';
 import {
@@ -28,6 +29,15 @@ export class PlayerController {
     isAttacking = false;
     lastHitTime = 0;
     playerHP = 0;
+    currentBiome: number = TILE_IDS.PLAINS;
+
+    // Movement constants
+    private readonly ACCEL_DEFAULT = 2000;
+    private readonly DRAG_DEFAULT = 2500;
+    private readonly ACCEL_SNOW = 600;
+    private readonly DRAG_SNOW = 150;
+    private readonly SPEED_SNOW = PLAYER_SPEED * 1.3;
+    private readonly SPEED_SWAMP = PLAYER_SPEED * 0.6;
 
     // Callbacks for external integration
     onDamage?: (hp: number) => void;
@@ -46,7 +56,35 @@ export class PlayerController {
         this.player.setCollideWorldBounds(true);
         this.player.body!.setSize(20, 22);
         this.player.body!.setOffset(6, 8);
+        
+        // Default movement physics
+        this.player.setDrag(this.DRAG_DEFAULT);
+        this.player.setMaxVelocity(PLAYER_SPEED);
+        
         this.player.play('idle_down');
+    }
+
+    /**
+     * Update current biome to affect movement physics.
+     */
+    setBiome(biome: number): void {
+        if (this.currentBiome === biome) return;
+        this.currentBiome = biome;
+
+        switch (biome) {
+            case TILE_IDS.SNOW:
+                this.player.setDrag(this.DRAG_SNOW);
+                this.player.setMaxVelocity(this.SPEED_SNOW);
+                break;
+            case TILE_IDS.SWAMP:
+                this.player.setDrag(this.DRAG_DEFAULT);
+                this.player.setMaxVelocity(this.SPEED_SWAMP);
+                break;
+            default:
+                this.player.setDrag(this.DRAG_DEFAULT);
+                this.player.setMaxVelocity(PLAYER_SPEED);
+                break;
+        }
     }
 
     /**
@@ -99,28 +137,38 @@ export class PlayerController {
      * Returns true if player is moving.
      */
     update(time: number, intent: PlayerIntent): boolean {
-        if (this.isAttacking) return false;
+        if (this.isAttacking) {
+            this.player.setAcceleration(0, 0);
+            return false;
+        }
 
         // Use intent directly
-        let vx = intent.moveX;
-        let vy = intent.moveY;
+        const ix = intent.moveX;
+        const iy = intent.moveY;
 
-        // Normalize velocity
-        const normVel = calcNormalizedVelocity(vx, vy, PLAYER_SPEED);
-        vx = normVel.vx;
-        vy = normVel.vy;
+        // Determine acceleration based on biome
+        const accelMag = this.currentBiome === TILE_IDS.SNOW ? this.ACCEL_SNOW : this.ACCEL_DEFAULT;
+        
+        if (ix !== 0 || iy !== 0) {
+            // Normalize acceleration
+            const length = Math.sqrt(ix * ix + iy * iy);
+            this.player.setAcceleration((ix / length) * accelMag, (iy / length) * accelMag);
+        } else {
+            this.player.setAcceleration(0, 0);
+        }
 
-        // Update facing
-        this.facing = getFacingFromVelocity(vx, vy, this.facing);
+        // Update facing based on current velocity
+        const body = this.player.body as Phaser.Physics.Arcade.Body;
+        if (body.velocity.x !== 0 || body.velocity.y !== 0) {
+            this.facing = getFacingFromVelocity(body.velocity.x, body.velocity.y, this.facing);
+        }
 
         // Update animation
-        const isMoving = vx !== 0 || vy !== 0;
+        const isMoving = body.velocity.x !== 0 || body.velocity.y !== 0;
         const animKey = getAnimKey(this.facing, isMoving);
         if (this.player.anims.currentAnim?.key !== animKey) {
             this.player.play(animKey, true);
         }
-
-        this.player.setVelocity(vx, vy);
 
         // Iframes alpha flicker
         const alpha = calcIframesAlpha(time, this.lastHitTime, IFRAMES_DUR);

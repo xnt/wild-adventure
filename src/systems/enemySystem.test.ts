@@ -51,12 +51,14 @@ describe('systems/enemySystem.ts', () => {
     describe('init', () => {
         it('initializes enemy and projectile groups', () => {
             const mockObstacleLayer = {} as any;
+            const mockWaterLayer = {} as any;
             const mockCollectibleSystem = {} as any;
-            system.init(mockObstacleLayer, mockCollectibleSystem);
+            system.init(mockObstacleLayer, mockWaterLayer, mockCollectibleSystem);
 
             expect(system.enemies).toBeDefined();
             expect(system.enemyProjectiles).toBeDefined();
             expect(system.obstacleLayer).toBe(mockObstacleLayer);
+            expect(system.waterLayer).toBe(mockWaterLayer);
             expect(system.collectibleSystem).toBe(mockCollectibleSystem);
         });
     });

@@ -78,7 +78,7 @@ export const generateEnemyFallbacks = (scene: Phaser.Scene, g: Phaser.GameObject
         g.generateTexture('gel', 32, 32);
     }
 
-    // ---- Enemy projectile (slow magic orb from Wizrobe) ----
+    // ---- Enemy projectile (slow magic orb from Wizrobe/Octorok) ----
     if (!scene.textures.exists('enemy_proj')) {
         g.clear();
         // Blue glowing orb
@@ -90,5 +90,25 @@ export const generateEnemyFallbacks = (scene: Phaser.Scene, g: Phaser.GameObject
         g.fillStyle(0xffffff);
         g.fillCircle(6, 6, 2);
         g.generateTexture('enemy_proj', 16, 16);
+    }
+
+    // ---- Octorok (red octopus that hides in water and shoots rocks) ----
+    if (!scene.textures.exists('octorok')) {
+        g.clear();
+        // Body (red/orange)
+        g.fillStyle(0xff4500); // orange red
+        g.fillCircle(16, 16, 12);
+        // Snout
+        g.fillStyle(0xdc143c); // crimson
+        g.fillRoundedRect(12, 20, 8, 10, 2);
+        // Eyes
+        g.fillStyle(0x000000); // black
+        g.fillCircle(12, 12, 3);
+        g.fillCircle(20, 12, 3);
+        // Pupils
+        g.fillStyle(0xffffff); // white
+        g.fillCircle(11, 11, 1);
+        g.fillCircle(19, 11, 1);
+        g.generateTexture('octorok', 32, 32);
     }
 };

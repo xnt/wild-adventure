@@ -43,6 +43,8 @@ export default class GameScene extends Phaser.Scene {
     worldFactory!: WorldFactory;
     worldData!: WorldData;
     obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
+    waterLayer!: Phaser.Physics.Arcade.StaticGroup;
+    waterCollider?: Phaser.Physics.Arcade.Collider;
 
     // Game state
     gameOver = false;
@@ -77,6 +79,8 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('snow', 'snow.png');
         this.load.image('tree', 'tree.png');
         this.load.image('rock', 'rock.png');
+        this.load.image('water', 'water.png');
+        this.load.image('bridge', 'bridge.png');
 
         // Enemy variety
         this.load.image('goblin', 'goblin.png');
@@ -100,6 +104,11 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('compass_hud', 'compass_hud.png');
         this.load.image('compass_hud_empty', 'compass_hud_empty.png');
         this.load.image('compass_arrow', 'compass_arrow.png');
+
+        // Snorkel assets
+        this.load.image('snorkel', 'snorkel.png');
+        this.load.image('snorkel_hud', 'snorkel_hud.png');
+        this.load.image('snorkel_hud_empty', 'snorkel_hud_empty.png');
 
         // Decorative structures
         this.load.image('pyramid', 'pyramid.png');
@@ -126,7 +135,9 @@ export default class GameScene extends Phaser.Scene {
         };
 
         // Build world
-        this.obstacleLayer = this.worldFactory.buildWorld(this.worldData);
+        const layers = this.worldFactory.buildWorld(this.worldData);
+        this.obstacleLayer = layers.obstacleLayer;
+        this.waterLayer = layers.waterLayer;
 
         // Initialize systems
         this._initSystems();
@@ -176,10 +187,13 @@ export default class GameScene extends Phaser.Scene {
         this.collectibleSystem.onCompassCollected = () => {
             this.uiSystem.enableCompass();
         };
+        this.collectibleSystem.onSnorkelCollected = () => {
+            this._onSnorkelCollected();
+        };
 
         // Enemy System
         this.enemySystem = new EnemySystem(this);
-        this.enemySystem.init(this.obstacleLayer, this.collectibleSystem);
+        this.enemySystem.init(this.obstacleLayer, this.waterLayer, this.collectibleSystem);
         this.enemySystem.createEnemies(this.worldFactory, mapData, startX, startY);
         this.enemySystem.setupPlayerCollisions(this.playerController.player);
         this.enemySystem.onPlayerHitByEnemy = (enemy) => {
@@ -193,6 +207,22 @@ export default class GameScene extends Phaser.Scene {
         // Colliders: player & obstacles, enemies & obstacles
         this.physics.add.collider(this.playerController.player, this.obstacleLayer);
         this.physics.add.collider(this.enemySystem.getEnemies(), this.obstacleLayer);
+
+        // Water collider (only if no snorkel)
+        this.waterCollider = this.physics.add.collider(this.playerController.player, this.waterLayer);
+
+        // Enemies always collide with water (except Octoroks which are in it)
+        this.physics.add.collider(this.enemySystem.getEnemies(), this.waterLayer, (enemy) => {
+            // Octoroks are intended to be in water, don't collide them
+            const e = enemy as any;
+            if (e.type === 'octorok') {
+                return false;
+            }
+            return true;
+        }, (enemy) => {
+            const e = enemy as any;
+            return e.type !== 'octorok';
+        });
 
         // Collectible pickup collision
         this.collectibleSystem.setupPlayerCollisions(this.playerController.player);
@@ -233,10 +263,11 @@ export default class GameScene extends Phaser.Scene {
         const intent = this.inputSource.getIntent();
 
         // Update player with intent
+        const playerPos = this.playerController.getPosition();
+        this._updatePlayerBiome(playerPos.x, playerPos.y);
         this.playerController.update(time, intent);
 
         // Update combat (check for attack intent)
-        const playerPos = this.playerController.getPosition();
         this.combatSystem.update(
             time,
             playerPos.x,
@@ -334,5 +365,26 @@ export default class GameScene extends Phaser.Scene {
 
         // Show flash text
         this.uiSystem.showFlashText('✦ Triforce Complete! HP upgraded! ✦');
+    }
+
+    _onSnorkelCollected(): void {
+        if (this.waterCollider) {
+            this.waterCollider.active = false;
+        }
+        this.uiSystem.enableSnorkel();
+        this.uiSystem.showFlashText('✦ Snorkel Collected! You can now swim! ✦');
+    }
+
+    /**
+     * Detect biome under player and update controller physics.
+     */
+    _updatePlayerBiome(x: number, y: number): void {
+        const col = Math.floor(x / TILE_SIZE);
+        const row = Math.floor(y / TILE_SIZE);
+
+        if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
+            const tileType = this.worldData.map[row][col];
+            this.playerController.setBiome(tileType);
+        }
     }
 }

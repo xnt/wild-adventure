@@ -24,6 +24,7 @@ export class EnemySystem {
     enemies!: Phaser.Physics.Arcade.Group;
     enemyProjectiles!: Phaser.Physics.Arcade.Group;
     obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
+    waterLayer!: Phaser.Physics.Arcade.StaticGroup;
     collectibleSystem!: CollectibleSystem;
 
     // State
@@ -44,13 +45,18 @@ export class EnemySystem {
     /**
      * Initialize groups. Call from scene's create().
      */
-    init(obstacleLayer: Phaser.Physics.Arcade.StaticGroup, collectibleSystem: CollectibleSystem): void {
+    init(
+        obstacleLayer: Phaser.Physics.Arcade.StaticGroup, 
+        waterLayer: Phaser.Physics.Arcade.StaticGroup,
+        collectibleSystem: CollectibleSystem
+    ): void {
         this.obstacleLayer = obstacleLayer;
+        this.waterLayer = waterLayer;
         this.collectibleSystem = collectibleSystem;
         this.enemies = this.scene.physics.add.group();
         this.enemyProjectiles = this.scene.physics.add.group();
 
-        // Projectiles collide with obstacles
+        // Projectiles collide with obstacles (trees/rocks)
         this.scene.physics.add.collider(
             this.enemyProjectiles,
             this.obstacleLayer,
@@ -67,18 +73,23 @@ export class EnemySystem {
         this.mapData = mapData;
         this.playerPos = { x: playerX, y: playerY };
 
-        const typeCycle = ['goblin', 'wizrobe', 'gel', 'goblin', 'wizrobe', 'gel', 'lynel'];
+        const typeCycle = ['goblin', 'wizrobe', 'gel', 'goblin', 'wizrobe', 'gel', 'lynel', 'octorok', 'octorok', 'octorok'];
         let spawned = 0;
         let attempts = 0;
 
         while (spawned < this.totalEnemies && attempts < 500) {
             attempts++;
 
-            const spawn = worldFactory.getValidSpawn(mapData, this.playerPos);
+            const enemyType = typeCycle[spawned];
+            const isOctorok = enemyType === 'octorok';
+            
+            const spawn = isOctorok 
+                ? worldFactory.getWaterSpawn(mapData, this.playerPos)
+                : worldFactory.getValidSpawn(mapData, this.playerPos);
+                
             if (!spawn) continue;
 
             const { x, y } = spawn;
-            const enemyType = typeCycle[spawned];
             const config = ENEMY_CONFIGS[enemyType];
 
             const enemy = this.scene.physics.add.sprite(x, y, config.texture) as GameEnemy;
@@ -96,6 +107,11 @@ export class EnemySystem {
 
             if (enemyType === 'gel_small') {
                 enemy.body!.setSize(14, 10).setOffset(9, 14);
+            }
+
+            if (isOctorok) {
+                // Octoroks hide initially
+                enemy.setAlpha(0);
             }
 
             enemy.type         = enemyType;

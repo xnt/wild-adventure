@@ -79,8 +79,22 @@ describe('systems/uiSystem.ts', () => {
             expect(system.enemyText).toBeDefined();
             expect(system.triforceHudSprites.length).toBe(3); // NUM_TRIFORCE_PIECES
             expect(system.compassHudSprite).toBeDefined();
+            expect(system.snorkelHudSprite).toBeDefined();
             expect(system.compassArrow).toBeDefined();
             expect(system.overlayBg).toBeDefined();
+        });
+    });
+
+    describe('enableSnorkel', () => {
+        it('enables snorkel and updates HUD', () => {
+            system.create(7);
+            
+            const mockSetTexture = vi.fn();
+            system.snorkelHudSprite.setTexture = mockSetTexture;
+            
+            system.enableSnorkel();
+            
+            expect(mockSetTexture).toHaveBeenCalledWith('snorkel_hud');
         });
     });
 
