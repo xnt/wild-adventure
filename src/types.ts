@@ -59,7 +59,7 @@ export type GameEnemy = Phaser.Physics.Arcade.Sprite & {
  */
 export interface EnemyBehavior {
     update(enemy: GameEnemy, player: PositionedObject, time: number): boolean;
-    onDamage?(enemy: GameEnemy, enemySystem: any): void;
+    onDamage?(enemy: GameEnemy, enemySystem: EnemySystemLike): void;
 }
 
 /** Union for physics callbacks (exact match to ArcadePhysicsCallback for assignability). */
@@ -75,6 +75,32 @@ export type PositionedObject = { x: number; y: number };
 /** Cardinal facing direction (snapped from velocity/input; used in anim/attack calcs). */
 export type Facing = 'up' | 'down' | 'left' | 'right';
 
+// --- Interface Types for Cross-System Communication ---
+
+/**
+ * Minimal interface for scenes that can heal the player.
+ * Used by collectible pickup callbacks.
+ */
+export interface SceneWithPlayer {
+    playerController: {
+        heal(amount: number, maxHP: number): void;
+    };
+    cameras: {
+        main: {
+            flash(duration: number, r: number, g: number, b: number, force?: boolean): void;
+        };
+    };
+}
+
+/**
+ * Minimal interface for enemy system operations needed by behaviors.
+ * Avoids circular dependency between types.ts and EnemySystem.
+ */
+export interface EnemySystemLike {
+    splitGel(enemy: GameEnemy): void;
+    killEnemy(enemy: GameEnemy): void;
+}
+
 // --- Unified Collectible System Types ---
 
 export type CollectibleType = 'heart' | 'triforce_piece' | 'compass' | 'key' | 'potion' | 'snorkel';
@@ -83,7 +109,7 @@ export interface CollectibleDefinition {
     type: CollectibleType;
     texture: string;
     label: string;
-    onPickup?: (scene: any, collectible: GameCollectible) => void;
+    onPickup?: (scene: SceneWithPlayer, collectible: GameCollectible | null) => void;
 }
 
 /** 
@@ -93,6 +119,27 @@ export type GameCollectible = Phaser.Physics.Arcade.Sprite & {
     collectibleType: CollectibleType;
     data?: any;
 };
+
+// --- GameSystem Interface ---
+
+/**
+ * GameSystem is the base interface for all decoupled game systems.
+ * Systems are scene-scoped, have optional lifecycle hooks, and are
+ * orchestrated by GameScene.
+ */
+export interface GameSystem {
+    /** The Phaser scene this system belongs to */
+    scene: Phaser.Scene;
+
+    /** Optional initialization hook (called after construction, receives dependencies) */
+    init?(...args: unknown[]): void;
+
+    /** Optional per-frame update hook (signature varies by system) */
+    update?(...args: unknown[]): void;
+
+    /** Optional cleanup/reset hook (called on scene restart) */
+    reset?(): void;
+}
 
 // Re-export EnemyConfig and ChestContent from constants for convenience.
 export type { EnemyConfig, ChestContent } from './constants.js';

@@ -4,6 +4,13 @@ import {
     NUM_STRUCTURES, STRUCTURE_TYPES, StructureConfig,
 } from './constants.js';
 
+/** Node for BFS pathfinding in accessibility validation */
+interface BFSNode {
+    col: number;
+    row: number;
+    parent: BFSNode | null;
+}
+
 /** Configuration for waterway generation. */
 export type WaterwayConfig = {
     numRivers: number;        // Number of rivers to generate
@@ -743,7 +750,7 @@ export class WorldFactory {
     ): boolean {
         // BFS to find the nearest reachable tile from the target unreachable tile
         const visited: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
-        const queue: Array<{col: number, row: number, parent: any}> = [{ col: target.col, row: target.row, parent: null }];
+        const queue: BFSNode[] = [{ col: target.col, row: target.row, parent: null }];
         visited[target.row][target.col] = true;
         
         const directions = [
@@ -753,7 +760,7 @@ export class WorldFactory {
         
         // Use a simple BFS to find ANY reachable tile
         // We consider everything traversable for this search
-        let foundNode = null;
+        let foundNode: BFSNode | null = null;
         
         // We'll use a separate BFS from the start point to mark reachable tiles
         const reachable = this.validateAccessibility(map, startX, startY).visited;
@@ -784,7 +791,7 @@ export class WorldFactory {
 
         if (foundNode) {
             // Path found! Backtrack and clear/bridge everything on the path.
-            let curr = foundNode;
+            let curr: BFSNode | null = foundNode;
             while (curr) {
                 const tile = map[curr.row][curr.col];
                 if (tile === TILE_IDS.WATER) map[curr.row][curr.col] = TILE_IDS.BRIDGE;

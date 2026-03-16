@@ -2,10 +2,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EnemySystem } from './enemySystem.js';
+import { EventBus } from './eventBus.js';
 
 describe('systems/enemySystem.ts', () => {
     let system: EnemySystem;
     let mockScene: any;
+    let eventBus: EventBus;
 
     beforeEach(() => {
         mockScene = {
@@ -45,7 +47,8 @@ describe('systems/enemySystem.ts', () => {
             },
         };
 
-        system = new EnemySystem(mockScene);
+        eventBus = new EventBus();
+        system = new EnemySystem(mockScene, eventBus);
     });
 
     describe('init', () => {
@@ -120,23 +123,32 @@ describe('systems/enemySystem.ts', () => {
         });
     });
 
-    describe('callbacks', () => {
-        it('onEnemyKilled callback can be set', () => {
+    describe('eventBus', () => {
+        it('emits enemy:killed event when enemy is killed', () => {
             const onEnemyKilledSpy = vi.fn();
-            system.onEnemyKilled = onEnemyKilledSpy;
-            expect(system.onEnemyKilled).toBe(onEnemyKilledSpy);
+            eventBus.on('enemy:killed', onEnemyKilledSpy);
+
+            // Verify event bus subscription works
+            eventBus.emit('enemy:killed', { enemy: { type: 'goblin' } as any });
+            expect(onEnemyKilledSpy).toHaveBeenCalledWith({ enemy: expect.any(Object) });
         });
 
-        it('onPlayerHitByEnemy callback can be set', () => {
-            const onPlayerHitByEnemySpy = vi.fn();
-            system.onPlayerHitByEnemy = onPlayerHitByEnemySpy;
-            expect(system.onPlayerHitByEnemy).toBe(onPlayerHitByEnemySpy);
+        it('emits enemy:playerHit event when player is hit by enemy', () => {
+            const onPlayerHitSpy = vi.fn();
+            eventBus.on('enemy:playerHit', onPlayerHitSpy);
+
+            // Verify event bus subscription works
+            eventBus.emit('enemy:playerHit', { enemy: { type: 'goblin' } as any });
+            expect(onPlayerHitSpy).toHaveBeenCalledWith({ enemy: expect.any(Object) });
         });
 
-        it('onPlayerHitByProjectile callback can be set', () => {
-            const onPlayerHitByProjectileSpy = vi.fn();
-            system.onPlayerHitByProjectile = onPlayerHitByProjectileSpy;
-            expect(system.onPlayerHitByProjectile).toBe(onPlayerHitByProjectileSpy);
+        it('emits enemy:projectileHit event when player is hit by projectile', () => {
+            const onProjectileHitSpy = vi.fn();
+            eventBus.on('enemy:projectileHit', onProjectileHitSpy);
+
+            // Verify event bus subscription works
+            eventBus.emit('enemy:projectileHit', { projectile: {} as any });
+            expect(onProjectileHitSpy).toHaveBeenCalledWith({ projectile: expect.any(Object) });
         });
     });
 

@@ -4,7 +4,8 @@ import {
     PROJ_LIFETIME,
     ENEMY_CONFIGS,
 } from '../constants.js';
-import type { GameEnemy, PositionedObject } from '../types.js';
+import type { GameEnemy, PositionedObject, GameSystem } from '../types.js';
+import type { EventBus } from './eventBus.js';
 import { WorldFactory } from '../worldFactory.js';
 import { CollectibleSystem } from './collectiblesSystem.js';
 import {
@@ -19,8 +20,9 @@ import { createBehavior } from './enemyBehaviors/index.js';
  *
  * Decoupled from GameScene; manages its own groups and callbacks.
  */
-export class EnemySystem {
+export class EnemySystem implements GameSystem {
     scene: Phaser.Scene;
+    private eventBus: EventBus;
     enemies!: Phaser.Physics.Arcade.Group;
     enemyProjectiles!: Phaser.Physics.Arcade.Group;
     obstacleLayer!: Phaser.Physics.Arcade.StaticGroup;
@@ -33,13 +35,9 @@ export class EnemySystem {
     mapData: number[][] = [];
     playerPos: PositionedObject = { x: 0, y: 0 };
 
-    // Callbacks
-    onEnemyKilled?: () => void;
-    onPlayerHitByEnemy?: (enemy: GameEnemy) => void;
-    onPlayerHitByProjectile?: (proj: Phaser.Physics.Arcade.Sprite) => void;
-
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, eventBus: EventBus) {
         this.scene = scene;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -145,7 +143,7 @@ export class EnemySystem {
             (_p, enemy) => {
                 const enemyTyped = enemy as GameEnemy;
                 if (enemyTyped.isDying) return;
-                this.onPlayerHitByEnemy?.(enemyTyped);
+                this.eventBus.emit('enemy:playerHit', { enemy: enemyTyped });
             },
             undefined,
             this,
@@ -156,8 +154,9 @@ export class EnemySystem {
             player,
             this.enemyProjectiles,
             (_p, proj) => {
-                this.onPlayerHitByProjectile?.(proj as Phaser.Physics.Arcade.Sprite);
-                (proj as Phaser.Physics.Arcade.Sprite).destroy();
+                const projSprite = proj as Phaser.Physics.Arcade.Sprite;
+                this.eventBus.emit('enemy:projectileHit', { projectile: projSprite });
+                projSprite.destroy();
             },
             undefined,
             this,
@@ -258,7 +257,7 @@ export class EnemySystem {
             onComplete: () => {
                 this.collectibleSystem.spawnCollectible(enemy.x, enemy.y, 'heart');
                 enemy.destroy();
-                this.onEnemyKilled?.();
+                this.eventBus.emit('enemy:killed', { enemy });
             },
         });
     }
@@ -296,7 +295,7 @@ export class EnemySystem {
         });
 
         enemy.destroy();
-        this.onEnemyKilled?.();
+        this.eventBus.emit('enemy:killed', { enemy });
     }
 
     /**

@@ -5,6 +5,7 @@ import {
     NUM_TRIFORCE_PIECES,
     TRIFORCE_BONUS_HP,
 } from '../constants.js';
+import type { GameSystem } from '../types.js';
 import { getHeartTexture } from '../gameSceneUtils.js';
 
 /**
@@ -13,7 +14,7 @@ import { getHeartTexture } from '../gameSceneUtils.js';
  *
  * Decoupled from GameScene; manages all UI elements independently.
  */
-export class UISystem {
+export class UISystem implements GameSystem {
     scene: Phaser.Scene;
 
     // HUD elements

@@ -4,7 +4,8 @@ import {
     ATTACK_DUR,
     ATTACK_CD,
 } from '../constants.js';
-import type { Facing, GameEnemy } from '../types.js';
+import type { Facing, GameEnemy, GameSystem } from '../types.js';
+import type { EventBus } from './eventBus.js';
 import {
     calcAttackOffset,
     getSwordDimensions,
@@ -18,8 +19,9 @@ import {
  *
  * Decoupled from GameScene; works with playerController to get facing/state.
  */
-export class CombatSystem {
+export class CombatSystem implements GameSystem {
     scene: Phaser.Scene;
+    private eventBus: EventBus;
     swordGroup!: Phaser.Physics.Arcade.Group;
     enemiesGroup!: Phaser.Physics.Arcade.Group;
 
@@ -27,13 +29,9 @@ export class CombatSystem {
     isAttacking = false;
     lastAttackTime = 0;
 
-    // Callbacks
-    onAttackStart?: () => void;
-    onAttackEnd?: () => void;
-    onEnemyHit?: (enemy: GameEnemy) => void;
-
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, eventBus: EventBus) {
         this.scene = scene;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -50,7 +48,7 @@ export class CombatSystem {
             (sword, enemy) => {
                 const enemyTyped = enemy as GameEnemy;
                 if (enemyTyped.isDying) return;
-                this.onEnemyHit?.(enemyTyped);
+                this.eventBus.emit('combat:enemyHit', { enemy: enemyTyped });
                 (sword as Phaser.Physics.Arcade.Sprite).destroy();
             },
             (sword, enemy) => !(enemy as GameEnemy).isDying,
@@ -85,7 +83,7 @@ export class CombatSystem {
         this.isAttacking = true;
         this.lastAttackTime = time;
 
-        this.onAttackStart?.();
+        this.eventBus.emit('combat:attackStarted', undefined);
 
         const { offX, offY } = calcAttackOffset(facing, ATTACK_RANGE);
         const { width, height } = getSwordDimensions(facing);
@@ -110,7 +108,7 @@ export class CombatSystem {
                 sword.destroy();
             }
             this.isAttacking = false;
-            this.onAttackEnd?.();
+            this.eventBus.emit('combat:attackEnded', undefined);
         });
     }
 

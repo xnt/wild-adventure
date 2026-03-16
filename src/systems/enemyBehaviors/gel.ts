@@ -1,4 +1,4 @@
-import type { GameEnemy, PositionedObject } from '../../types.js';
+import type { GameEnemy, PositionedObject, EnemySystemLike } from '../../types.js';
 import { BaseEnemyBehavior } from './base.js';
 
 export class GelBehavior extends BaseEnemyBehavior {
@@ -9,7 +9,7 @@ export class GelBehavior extends BaseEnemyBehavior {
         return false;
     }
 
-    onDamage(enemy: GameEnemy, enemySystem: any): void {
+    onDamage(enemy: GameEnemy, enemySystem: EnemySystemLike): void {
         if (enemy.hp <= 0) {
             enemySystem.splitGel(enemy);
         }

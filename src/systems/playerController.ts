@@ -5,7 +5,8 @@ import {
     ENEMY_DMG,
     TILE_IDS,
 } from '../constants.js';
-import type { Facing, PlayerIntent } from '../types.js';
+import type { Facing, PlayerIntent, GameSystem } from '../types.js';
+import type { EventBus } from './eventBus.js';
 import {
     getFacingFromVelocity,
     calcNormalizedVelocity,
@@ -20,9 +21,10 @@ import {
  *
  * Decoupled from input; receives PlayerIntent from input sources.
  */
-export class PlayerController {
+export class PlayerController implements GameSystem {
     scene: Phaser.Scene;
     player!: Phaser.Physics.Arcade.Sprite;
+    private eventBus: EventBus;
 
     // State
     facing: Facing = 'down';
@@ -30,6 +32,7 @@ export class PlayerController {
     lastHitTime = 0;
     playerHP = 0;
     currentBiome: number = TILE_IDS.PLAINS;
+    maxHp: number = 6; // Default max HP
 
     // Movement constants
     private readonly ACCEL_DEFAULT = 2000;
@@ -39,12 +42,9 @@ export class PlayerController {
     private readonly SPEED_SNOW = PLAYER_SPEED * 1.3;
     private readonly SPEED_SWAMP = PLAYER_SPEED * 0.6;
 
-    // Callbacks for external integration
-    onDamage?: (hp: number) => void;
-    onDeath?: () => void;
-
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, eventBus: EventBus) {
         this.scene = scene;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -195,9 +195,9 @@ export class PlayerController {
 
         if (this.playerHP <= 0) {
             this.playerHP = 0;
-            this.onDeath?.();
+            this.eventBus.emit('player:died', undefined);
         } else {
-            this.onDamage?.(this.playerHP);
+            this.eventBus.emit('player:damaged', { hp: this.playerHP, maxHp: this.maxHp });
         }
     }
 

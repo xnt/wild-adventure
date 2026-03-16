@@ -303,7 +303,7 @@ describe('enemyBehaviors', () => {
 
         it('should call splitGel on damage if hp <= 0', () => {
             const behavior = new GelBehavior();
-            const mockSystem = { splitGel: vi.fn() };
+            const mockSystem = { splitGel: vi.fn(), killEnemy: vi.fn() };
             mockEnemy.hp = 0;
             
             behavior.onDamage!(mockEnemy as GameEnemy, mockSystem);
@@ -312,7 +312,7 @@ describe('enemyBehaviors', () => {
 
         it('should not call splitGel if hp > 0', () => {
             const behavior = new GelBehavior();
-            const mockSystem = { splitGel: vi.fn() };
+            const mockSystem = { splitGel: vi.fn(), killEnemy: vi.fn() };
             mockEnemy.hp = 1;
             
             behavior.onDamage!(mockEnemy as GameEnemy, mockSystem);

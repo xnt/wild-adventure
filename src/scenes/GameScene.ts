@@ -8,7 +8,7 @@ import {
 import { mapData, chestPositions, structurePlacements } from '../map.js';
 import { generateFallbacks } from '../fallbacks/index.js';
 import { WorldFactory, WorldData } from '../worldFactory.js';
-import type { PlayerIntent } from '../types.js';
+import type { PlayerIntent, GameEnemy } from '../types.js';
 
 // Systems
 import {
@@ -20,6 +20,7 @@ import {
     KeyboardInputSource,
     TouchInputSource,
     CompositeInputSource,
+    EventBus,
 } from '../systems/index.js';
 
 // ===========================================================================
@@ -33,6 +34,9 @@ export default class GameScene extends Phaser.Scene {
     enemySystem!: EnemySystem;
     uiSystem!: UISystem;
     collectibleSystem!: CollectibleSystem;
+
+    // Event Bus
+    eventBus!: EventBus;
 
     // Input
     inputSource!: CompositeInputSource;
@@ -159,50 +163,34 @@ export default class GameScene extends Phaser.Scene {
         const startX = Math.floor(MAP_COLS / 2) * TILE_SIZE + TILE_SIZE / 2;
         const startY = Math.floor(MAP_ROWS / 2) * TILE_SIZE + TILE_SIZE / 2;
 
+        // Event Bus (central pub/sub for system communication)
+        this.eventBus = new EventBus();
+        this._setupEventSubscriptions();
+
         // Input sources (device-agnostic intent generation)
         this.keyboardSource = new KeyboardInputSource(this);
         const touchSource = new TouchInputSource(this);
         this.inputSource = new CompositeInputSource([this.keyboardSource, touchSource]);
 
         // Player Controller
-        this.playerController = new PlayerController(this);
+        this.playerController = new PlayerController(this, this.eventBus);
         this.playerController.createAnimations(F);
         this.playerController.createPlayer(startX, startY, F.IDLE_S);
         this.playerController.setHP(MAX_HP);
-        this.playerController.onDeath = () => this._showGameOver();
 
         // UI System
         this.uiSystem = new UISystem(this);
         this.uiSystem.create(NUM_ENEMIES);
 
         // Collectible System
-        this.collectibleSystem = new CollectibleSystem(this);
+        this.collectibleSystem = new CollectibleSystem(this, this.eventBus);
         this.collectibleSystem.createChests(chestPositions);
-        this.collectibleSystem.onTriforceCollected = (pieceIndex) => {
-            this.uiSystem.updateTriforce(pieceIndex);
-        };
-        this.collectibleSystem.onTriforceComplete = () => {
-            this._onTriforceComplete();
-        };
-        this.collectibleSystem.onCompassCollected = () => {
-            this.uiSystem.enableCompass();
-        };
-        this.collectibleSystem.onSnorkelCollected = () => {
-            this._onSnorkelCollected();
-        };
 
         // Enemy System
-        this.enemySystem = new EnemySystem(this);
+        this.enemySystem = new EnemySystem(this, this.eventBus);
         this.enemySystem.init(this.obstacleLayer, this.waterLayer, this.collectibleSystem);
         this.enemySystem.createEnemies(this.worldFactory, mapData, startX, startY);
         this.enemySystem.setupPlayerCollisions(this.playerController.player);
-        this.enemySystem.onPlayerHitByEnemy = (enemy) => {
-            this.playerController.takeDamage(enemy, this.time.now);
-        };
-        this.enemySystem.onPlayerHitByProjectile = (proj) => {
-            this.playerController.takeDamage(proj, this.time.now);
-        };
-        this.enemySystem.onEnemyKilled = () => this._checkVictory();
 
         // Colliders: player & obstacles, enemies & obstacles
         this.physics.add.collider(this.playerController.player, this.obstacleLayer);
@@ -214,13 +202,13 @@ export default class GameScene extends Phaser.Scene {
         // Enemies always collide with water (except Octoroks which are in it)
         this.physics.add.collider(this.enemySystem.getEnemies(), this.waterLayer, (enemy) => {
             // Octoroks are intended to be in water, don't collide them
-            const e = enemy as any;
+            const e = enemy as GameEnemy;
             if (e.type === 'octorok') {
                 return false;
             }
             return true;
         }, (enemy) => {
-            const e = enemy as any;
+            const e = enemy as GameEnemy;
             return e.type !== 'octorok';
         });
 
@@ -228,21 +216,58 @@ export default class GameScene extends Phaser.Scene {
         this.collectibleSystem.setupPlayerCollisions(this.playerController.player);
 
         // Combat System
-        this.combatSystem = new CombatSystem(this);
+        this.combatSystem = new CombatSystem(this, this.eventBus);
         const swordGroup = this.combatSystem.createSwordGroup();
         this.combatSystem.init(swordGroup, this.enemySystem.getEnemies());
-        this.combatSystem.onAttackStart = () => {
+    }
+
+    // -----------------------------------------------------------------------
+    // Event Bus Subscriptions
+    // -----------------------------------------------------------------------
+    _setupEventSubscriptions(): void {
+        // Player events
+        this.eventBus.on('player:died', () => {
+            this._showGameOver();
+        });
+
+        // Combat events
+        this.eventBus.on('combat:attackStarted', () => {
             this.playerController.setAttacking(true);
             this.playerController.stop();
             this.playerController.playAttack();
-        };
-        this.combatSystem.onAttackEnd = () => {
+        });
+        this.eventBus.on('combat:attackEnded', () => {
             this.playerController.setAttacking(false);
             this.playerController.playIdle();
-        };
-        this.combatSystem.onEnemyHit = (enemy) => {
+        });
+        this.eventBus.on('combat:enemyHit', ({ enemy }) => {
             this.enemySystem.damageEnemy(enemy);
-        };
+        });
+
+        // Enemy events
+        this.eventBus.on('enemy:playerHit', ({ enemy }) => {
+            this.playerController.takeDamage(enemy, this.time.now);
+        });
+        this.eventBus.on('enemy:projectileHit', ({ projectile }) => {
+            this.playerController.takeDamage(projectile, this.time.now);
+        });
+        this.eventBus.on('enemy:killed', () => {
+            this._checkVictory();
+        });
+
+        // Collectible events
+        this.eventBus.on('collectible:triforceCollected', ({ pieceIndex }) => {
+            this.uiSystem.updateTriforce(pieceIndex);
+        });
+        this.eventBus.on('collectible:triforceComplete', () => {
+            this._onTriforceComplete();
+        });
+        this.eventBus.on('collectible:compassCollected', () => {
+            this.uiSystem.enableCompass();
+        });
+        this.eventBus.on('collectible:snorkelCollected', () => {
+            this._onSnorkelCollected();
+        });
     }
 
     // -----------------------------------------------------------------------

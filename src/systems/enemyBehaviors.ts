@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { GameEnemy, PositionedObject, EnemyBehavior } from '../types.js';
+import type { GameEnemy, PositionedObject, EnemyBehavior, EnemySystemLike } from '../types.js';
 import {
     ENEMY_SPEED,
     CHASE_RANGE,
@@ -115,7 +115,7 @@ export class GelBehavior extends BaseEnemyBehavior {
         return false;
     }
 
-    onDamage(enemy: GameEnemy, enemySystem: any): void {
+    onDamage(enemy: GameEnemy, enemySystem: EnemySystemLike): void {
         if (enemy.hp <= 0) {
             enemySystem.splitGel(enemy);
         }

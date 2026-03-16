@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CollectibleSystem } from './collectiblesSystem.js';
+import { EventBus } from './eventBus.js';
 
 describe('systems/collectiblesSystem.ts', () => {
     let system: CollectibleSystem;
     let mockScene: any;
+    let eventBus: EventBus;
 
     beforeEach(() => {
         mockScene = {
@@ -46,7 +48,8 @@ describe('systems/collectiblesSystem.ts', () => {
             }
         };
 
-        system = new CollectibleSystem(mockScene);
+        eventBus = new EventBus();
+        system = new CollectibleSystem(mockScene, eventBus);
     });
 
     describe('createChests', () => {

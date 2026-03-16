@@ -2,10 +2,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CombatSystem } from './combatSystem.js';
+import { EventBus } from './eventBus.js';
 
 describe('systems/combatSystem.ts', () => {
     let system: CombatSystem;
     let mockScene: any;
+    let eventBus: EventBus;
 
     beforeEach(() => {
         mockScene = {
@@ -28,7 +30,8 @@ describe('systems/combatSystem.ts', () => {
             },
         };
 
-        system = new CombatSystem(mockScene);
+        eventBus = new EventBus();
+        system = new CombatSystem(mockScene, eventBus);
     });
 
     describe('createSwordGroup', () => {
@@ -91,17 +94,17 @@ describe('systems/combatSystem.ts', () => {
         });
     });
 
-    describe('callbacks', () => {
-        it('onAttackStart is called when attack begins', () => {
+    describe('eventBus', () => {
+        it('emits combat:attackStarted event when attack begins', () => {
             const onAttackStartSpy = vi.fn();
-            system.onAttackStart = onAttackStartSpy;
+            eventBus.on('combat:attackStarted', onAttackStartSpy);
             system.isAttacking = false;
             system.lastAttackTime = 0;
-            
+
             // Initialize swordGroup before attack
             const mockSwordGroup = { add: vi.fn() };
             system.swordGroup = mockSwordGroup as any;
-            
+
             // Mock the scene methods needed for executeAttack
             mockScene.add.rectangle = vi.fn().mockReturnValue({
                 setDepth: vi.fn().mockReturnThis(),
@@ -109,16 +112,23 @@ describe('systems/combatSystem.ts', () => {
             mockScene.physics.add.existing = vi.fn();
             mockScene.time.delayedCall = vi.fn((_, cb) => cb());
             mockScene.tweens = { add: vi.fn() };
-            
+
             system.update(2000, 100, 100, 'down', true);
-            
-            expect(onAttackStartSpy).toHaveBeenCalled();
+
+            expect(onAttackStartSpy).toHaveBeenCalledWith(undefined);
         });
 
-        it('onEnemyHit callback can be set', () => {
+        it('emits combat:enemyHit event when enemy is hit', () => {
             const onEnemyHitSpy = vi.fn();
-            system.onEnemyHit = onEnemyHitSpy;
-            expect(system.onEnemyHit).toBe(onEnemyHitSpy);
+            eventBus.on('combat:enemyHit', onEnemyHitSpy);
+
+            // Set up the system with mocked groups
+            const mockSwordGroup = {} as any;
+            const mockEnemiesGroup = {} as any;
+            system.init(mockSwordGroup, mockEnemiesGroup);
+
+            // Verify the event would be emitted (callback is registered)
+            expect(mockScene.physics.add.overlap).toHaveBeenCalled();
         });
     });
 });

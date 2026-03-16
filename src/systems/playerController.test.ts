@@ -2,11 +2,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PlayerController } from './playerController.js';
+import { EventBus } from './eventBus.js';
 import type { PlayerIntent } from '../types.js';
 
 describe('systems/playerController.ts', () => {
     let controller: PlayerController;
     let mockScene: any;
+    let eventBus: EventBus;
 
     beforeEach(() => {
         // Create a mock Phaser scene
@@ -43,7 +45,8 @@ describe('systems/playerController.ts', () => {
             },
         };
 
-        controller = new PlayerController(mockScene);
+        eventBus = new EventBus();
+        controller = new PlayerController(mockScene, eventBus);
     });
 
     describe('createPlayer', () => {
@@ -169,12 +172,12 @@ describe('systems/playerController.ts', () => {
         });
     });
 
-    describe('callbacks', () => {
-        it('onDamage callback is called when player takes damage', () => {
+    describe('eventBus', () => {
+        it('emits player:damaged event when player takes damage', () => {
             const onDamageSpy = vi.fn();
-            controller.onDamage = onDamageSpy;
+            eventBus.on('player:damaged', onDamageSpy);
             controller.setHP(96);
-            
+
             // Create player mock with proper position
             controller.player = {
                 x: 100,
@@ -184,19 +187,19 @@ describe('systems/playerController.ts', () => {
                 clearTint: vi.fn(),
                 setAlpha: vi.fn(),
             } as any;
-            
+
             // Ensure time.delayedCall is mocked
             mockScene.time = { now: 1000, delayedCall: vi.fn() };
             controller.takeDamage({ x: 0, y: 0 }, 2000); // After iframes
-            
-            expect(onDamageSpy).toHaveBeenCalled();
+
+            expect(onDamageSpy).toHaveBeenCalledWith({ hp: expect.any(Number), maxHp: expect.any(Number) });
         });
 
-        it('onDeath callback is called when HP reaches 0', () => {
+        it('emits player:died event when HP reaches 0', () => {
             const onDeathSpy = vi.fn();
-            controller.onDeath = onDeathSpy;
+            eventBus.on('player:died', onDeathSpy);
             controller.setHP(24); // One hit from death
-            
+
             // Create player mock with proper position
             controller.player = {
                 x: 100,
@@ -206,12 +209,12 @@ describe('systems/playerController.ts', () => {
                 clearTint: vi.fn(),
                 setAlpha: vi.fn(),
             } as any;
-            
+
             // Ensure time.delayedCall is mocked
             mockScene.time = { now: 1000, delayedCall: vi.fn() };
             controller.takeDamage({ x: 0, y: 0 }, 2000);
-            
-            expect(onDeathSpy).toHaveBeenCalled();
+
+            expect(onDeathSpy).toHaveBeenCalledWith(undefined);
         });
     });
 });

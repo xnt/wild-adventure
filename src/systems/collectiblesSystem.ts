@@ -8,17 +8,19 @@ import {
     MAX_HP,
     HEART_HP,
 } from '../constants.js';
-import type { GameChest, GameCollectible, CollectibleType, CollectibleDefinition } from '../types.js';
+import type { GameChest, GameCollectible, CollectibleType, CollectibleDefinition, GameSystem, SceneWithPlayer } from '../types.js';
+import type { EventBus } from './eventBus.js';
 
 /**
  * CollectibleSystem — unified system for all pickups (hearts, triforce, compass, etc.)
  * Handles both chests and loose pickups.
  */
-export class CollectibleSystem {
+export class CollectibleSystem implements GameSystem {
     scene: Phaser.Scene;
+    private eventBus: EventBus;
     chests: GameChest[] = [];
     collectibles: Phaser.Physics.Arcade.Group;
-    
+
     // Progress state
     triforcePieces = 0;
     hasCompass = false;
@@ -27,16 +29,9 @@ export class CollectibleSystem {
     // Definitions
     private definitions: Record<CollectibleType, CollectibleDefinition>;
 
-    // Callbacks
-    onTriforceCollected?: (pieceIndex: number) => void;
-    onTriforceComplete?: () => void;
-    onCompassCollected?: () => void;
-    onSnorkelCollected?: () => void;
-    onChestOpened?: (label: string) => void;
-    onHeartCollected?: () => void;
-
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, eventBus: EventBus) {
         this.scene = scene;
+        this.eventBus = eventBus;
         this.collectibles = this.scene.physics.add.group();
         
         this.definitions = {
@@ -44,24 +39,24 @@ export class CollectibleSystem {
                 type: 'heart',
                 texture: 'heart_full',
                 label: 'Heart',
-                onPickup: (scene: any) => {
+                onPickup: (scene: SceneWithPlayer) => {
                     const effectiveMax = this.triforcePieces >= NUM_TRIFORCE_PIECES
                         ? TRIFORCE_BONUS_HP
                         : MAX_HP;
                     scene.playerController.heal(HEART_HP, effectiveMax);
-                    this.onHeartCollected?.();
+                    this.eventBus.emit('collectible:heartCollected', undefined);
                 }
             },
             triforce_piece: {
                 type: 'triforce_piece',
                 texture: 'triforce_piece',
                 label: 'Triforce Piece',
-                onPickup: (scene: any) => {
+                onPickup: (scene: SceneWithPlayer) => {
                     this.triforcePieces++;
-                    this.onTriforceCollected?.(this.triforcePieces);
+                    this.eventBus.emit('collectible:triforceCollected', { pieceIndex: this.triforcePieces });
                     scene.cameras.main.flash(300, 255, 215, 0, false);
                     if (this.triforcePieces >= NUM_TRIFORCE_PIECES) {
-                        this.onTriforceComplete?.();
+                        this.eventBus.emit('collectible:triforceComplete', undefined);
                     }
                 }
             },
@@ -69,9 +64,9 @@ export class CollectibleSystem {
                 type: 'compass',
                 texture: 'compass',
                 label: 'Compass',
-                onPickup: (scene: any) => {
+                onPickup: (scene: SceneWithPlayer) => {
                     this.hasCompass = true;
-                    this.onCompassCollected?.();
+                    this.eventBus.emit('collectible:compassCollected', undefined);
                     scene.cameras.main.flash(300, 100, 200, 255, false);
                 }
             },
@@ -91,9 +86,9 @@ export class CollectibleSystem {
                 type: 'snorkel',
                 texture: 'snorkel',
                 label: 'Snorkel',
-                onPickup: (scene: any) => {
+                onPickup: (scene: SceneWithPlayer) => {
                     this.hasSnorkel = true;
-                    this.onSnorkelCollected?.();
+                    this.eventBus.emit('collectible:snorkelCollected', undefined);
                     scene.cameras.main.flash(300, 0, 150, 255, false);
                 }
             }
@@ -171,7 +166,7 @@ export class CollectibleSystem {
         const def = this.definitions[type];
 
         // Apply effect
-        def.onPickup?.(this.scene, collectible);
+        def.onPickup?.(this.scene as unknown as SceneWithPlayer, collectible);
 
         // Renderer: Standard "pop" effect
         const popIcon = this.scene.add.image(collectible.x, collectible.y, def.texture)
@@ -225,7 +220,7 @@ export class CollectibleSystem {
         const def = this.definitions[type];
         
         // Apply effect
-        def.onPickup?.(this.scene, null as any); // Pass null as sprite since it's from a chest
+        def.onPickup?.(this.scene as unknown as SceneWithPlayer, null);
 
         // Renderer: Standard "pop" effect
         const popIcon = this.scene.add.image(chest.x, chest.y - 16, def.texture)
@@ -242,7 +237,7 @@ export class CollectibleSystem {
             onComplete: () => popIcon.destroy(),
         });
 
-        this.onChestOpened?.(content.label);
+        this.eventBus.emit('collectible:chestOpened', { label: content.label });
     }
 
     getChests(): GameChest[] {

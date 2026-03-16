@@ -8,3 +8,4 @@ export {
     TouchInputSource,
     CompositeInputSource,
 } from './inputSources.js';
+export { EventBus, type GameEvents, type EventName, type EventHandler } from './eventBus.js';
